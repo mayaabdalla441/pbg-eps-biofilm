@@ -1,0 +1,98 @@
+# eps-biofilm-dfba-static/investigation.yaml — schema v2
+schema_version: 2
+name: eps-biofilm-dfba-static
+title: "Static-Phase EPS dFBA — Framework Cross-Validation"
+created: '2026-08-03'
+status: running
+
+question: |
+  Does a two-stage (maximize growth, then floor growth and maximize pooled EPS[e])
+  dynamic FBA correctly reproduce the expected batch-culture dynamics -- exponential
+  growth, an amino-acid depletion cascade, and a growth/EPS plateau -- for E. coli on
+  LB medium during the static (no-flow) phase of a biofilm chip experiment? And does
+  the same algorithm produce consistent results when implemented independently in two
+  different process-bigraph frameworks (spatio-flux and cdFBA)?
+
+hypothesis: |
+  A correctly-implemented two-stage dFBA should reproduce the amino-acid depletion
+  cascade and growth-rate magnitude already established in prior (non-process-bigraph)
+  work on this project, and two independent framework implementations of the identical
+  algorithm, given identical inputs, should converge to identical trajectories.
+
+lead: |
+  This investigation ports a previously-validated batch dFBA model (E. coli, iML1515 +
+  three added EPS pathways pooled into a single EPS[e] reaction) into process-bigraph,
+  the compositional simulation framework this project is moving to. The same two-stage
+  growth-then-EPS algorithm was implemented independently on top of two different
+  process-bigraph-based libraries -- spatio-flux's DynamicFBA and cdFBA's dFBA -- to
+  cross-validate the port before building on it further.
+
+executive:
+  what_is_this: >-
+    Two independent process-bigraph implementations of the same two-stage
+    growth-then-EPS[e] dFBA algorithm for the static (t=0-4h) phase of E. coli
+    biofilm growth on LB medium, cross-validated against each other and against
+    a from-scratch manual calculation.
+  verdict: >-
+    Both implementations reproduce the expected depletion-cascade dynamics and
+    agree with each other exactly (biomass=1.6503 gDW/L, EPS=265.837 mg at the
+    t=4.0h plateau) and with an independent from-scratch raw-cobra replication of
+    the first 20 timesteps. Two real bugs were found and fixed during
+    development (untrusted flux on an infeasible solve in the spatio-flux
+    version; a Volumetric-type counts-dropping bug in the cdFBA version).
+  verdict_status: passed
+  verdict_detail: >-
+    Code-correctness is verified: both implementations correctly execute the
+    algorithm as specified. This does NOT verify the algorithm's biological
+    accuracy -- the 90% growth-floor assumption, the hard-cap (non-kinetic)
+    depletion mechanism, and the 1/3-each EPS[e] mass split are all still
+    unvalidated against real biological data (see decisions_needed).
+  decisions_needed:
+    - question: "Is the 90% growth-floor assumption during EPS production biologically defensible?"
+      context: >-
+        Literature review (Serra/Hengge macrocolony work) suggests real EPS/matrix
+        production in E. coli is associated with growth slowing substantially more
+        than 10% (a shift toward stationary-phase physiology, RpoS/CsgD-driven),
+        not a fixed 90%-of-max floor. No literature value for the "correct" floor
+        was found; this remains an assumption, not a validated parameter.
+    - question: "Should the flow-phase (t=3-72h) model reuse this static-phase code as-is?"
+      context: >-
+        This investigation only covers the static (no-flow) phase. The flow phase
+        needs a growth/biomass carrying-capacity mechanism this code doesn't have,
+        and is still blocked on real chamber data from the wet-lab collaborator
+        (areal biomass density, which chamber surfaces support growth).
+
+scientific_argument:
+  main_claim: >-
+    The process-bigraph port of the two-stage dFBA algorithm is implemented
+    correctly -- verified by exact agreement between two independent framework
+    implementations and a from-scratch manual replication -- and reproduces the
+    same qualitative and quantitative depletion-cascade behavior already
+    established in the pre-process-bigraph version of this project.
+  evidence_for:
+    - "Both EpsFBAStep (spatio-flux) and EpsCdFBAStep (cdFBA) produce identical trajectories at every recorded timestep through the full 5h run, including the exact plateau time and values."
+    - "A from-scratch, framework-free manual replication (raw cobra calls only) of the first 20 timesteps matches both implementations exactly, once an ordering bug in the manual script itself was found and fixed."
+    - "The growth-plateau timing (t=4.0h at dt=0.01h) falls between the two dt-resolution measurements from the original (non-process-bigraph) project (t~3.83h at dt=0.001h, t~4.2h at dt=0.1h), consistent with expected numerical convergence behavior."
+  evidence_against: []
+  key_figures:
+    - "workspace/investigations/eps-biofilm-dfba-static/studies/spatioflux-dfba-static/charts/trajectory.png"
+    - "workspace/investigations/eps-biofilm-dfba-static/studies/cdfba-dfba-static/charts/trajectory.png"
+  caveats:
+    - "Cross-implementation agreement verifies code correctness, not biological correctness -- both implementations wrap the exact same model file, aa_bounds/initial_aa_conc data, and two-stage design, so a wrong assumption in any of those would be reproduced identically by both, not caught by this cross-check."
+    - "dt=0.01h has not been formally convergence-tested on the full multi-step loop (only spot-checked at the single-step level in earlier, pre-process-bigraph work)."
+
+at_a_glance:
+  - study: spatioflux-dfba-static
+    role: "Reference implementation, built on spatio-flux's DynamicFBA."
+  - study: cdfba-dfba-static
+    role: "Independent cross-validation implementation, built on cdFBA's dFBA (per-PI direction to evaluate cdFBA as the primary framework going forward)."
+
+studies:
+  - spatioflux-dfba-static
+  - cdfba-dfba-static
+
+acceptance_criteria:
+  - study: spatioflux-dfba-static
+    behavior: reproduces-known-depletion-cascade-and-plateau
+  - study: cdfba-dfba-static
+    behavior: matches-spatioflux-implementation-exactly
