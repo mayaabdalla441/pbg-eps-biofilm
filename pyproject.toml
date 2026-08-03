@@ -17,6 +17,7 @@ dependencies = [
     # Extracted from pbg-template as of v0.4.16; provides the `vivarium-workbench
     # serve` CLI invoked by scripts/serve.sh.
     "vivarium-workbench",
+    "spatio_flux",
 ]
 
 [project.optional-dependencies]
@@ -39,4 +40,5 @@ allow-direct-references = true
 packages = ["pbg_eps_biofilm"]
 
 [tool.uv.sources]
+spatio_flux = { path = "external/spatio-flux", editable = true }
 vivarium-workbench = { git = "https://github.com/vivarium-collective/vivarium-workbench.git", branch = "main" }
