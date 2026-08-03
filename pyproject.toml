@@ -1,5 +1,13 @@
 [project]
-name = "eps-biofilm"
+# Distribution name matches the importable package (pbg_eps_biofilm), not the
+# human-readable workspace name ("eps-biofilm", used separately in
+# workspace.yaml / the workspace catalog). vivarium-workbench's composite
+# discovery falls back to guessing the import name from the distribution name
+# (hyphens -> underscores) whenever an editable install has no top_level.txt
+# — a mismatch here (it used to be "eps-biofilm" -> "eps_biofilm") makes that
+# guess wrong and this workspace's own @composite_generator entries silently
+# fail to register in any fresh subprocess (e.g. every dashboard study run).
+name = "pbg-eps-biofilm"
 version = "0.0.0"
 description = "Process-bigraph research workspace"
 requires-python = ">=3.11"

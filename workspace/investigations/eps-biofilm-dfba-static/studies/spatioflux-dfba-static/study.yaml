@@ -1,4 +1,3 @@
-# spatioflux-dfba-static/study.yaml — schema v4
 schema_version: 4
 name: spatioflux-dfba-static
 title: "Static-phase dFBA — spatio-flux implementation"
@@ -6,167 +5,149 @@ created: '2026-08-03'
 status: completed
 phase: Evaluate
 investigation: eps-biofilm-dfba-static
-
 report:
   confidence: high
   evidence_quality: calibrated
-  caveat: >-
-    Cross-implementation and manual-replication agreement verifies code
-    correctness, not biological correctness — the 90% growth floor, hard-cap
-    depletion, and 1/3-each EPS[e] mass split are unvalidated assumptions
-    shared by every check performed here.
-
+  caveat: "Cross-implementation and manual-replication agreement verifies code correctness, not biological correctness — the 90% growth floor, hard-cap depletion, and 1/3-each EPS[e] mass split are unvalidated assumptions shared by every check performed here."
 study_card:
-  goal: >-
-    Implement the two-stage growth-then-EPS[e] dFBA algorithm as a
-    process-bigraph Process on top of spatio-flux's DynamicFBA, and confirm
-    it reproduces the batch depletion-cascade dynamics established before
-    the port.
-  mechanism: >-
-    Each timestep (dt=0.01h), EpsFBAStep hard-caps each of 20 amino-acid
-    exchange reactions' uptake bound by what remains in the medium, solves
-    FBA twice against iML1515 + EPSPOOL — first maximizing growth, then
-    flooring growth at growth_floor_fraction (0.9) of that optimum and
-    maximizing the pooled EX_eps_e reaction — and returns the resulting
-    biomass/EPS/substrate deltas for that step.
-  why_before_next: >-
-    Establishes the reference trajectory that the independent cdFBA
-    implementation (cdfba-dfba-static) is cross-validated against.
-  expected_result: >-
-    Reproduce exponential growth into an amino-acid depletion cascade and a
-    growth/EPS plateau, at a magnitude consistent with the pre-process-bigraph
-    version of this project.
-  main_expert_question: >-
-    Is a fixed 90% growth-floor during EPS production biologically
-    defensible, or should it be replaced with a data-derived value?
-
-question: |
-  Does EpsFBAStep — a two-stage growth-then-EPS[e] dFBA Process built on
-  spatio-flux's DynamicFBA — correctly reproduce the amino-acid depletion
-  cascade and growth/EPS plateau dynamics of E. coli on LB medium over a
-  5-hour static-phase batch run?
-
+  goal: Implement the two-stage growth-then-EPS[e] dFBA algorithm as a process-bigraph Process on top of spatio-flux's DynamicFBA, and confirm it reproduces the batch depletion-cascade dynamics established before the port.
+  mechanism: "Each timestep (dt=0.01h), EpsFBAStep hard-caps each of 20 amino-acid exchange reactions' uptake bound by what remains in the medium, solves FBA twice against iML1515 + EPSPOOL — first maximizing growth, then flooring growth at growth_floor_fraction (0.9) of that optimum and maximizing the pooled EX_eps_e reaction — and returns the resulting biomass/EPS/substrate deltas for that step."
+  why_before_next: Establishes the reference trajectory that the independent cdFBA implementation (cdfba-dfba-static) is cross-validated against.
+  expected_result: Reproduce exponential growth into an amino-acid depletion cascade and a growth/EPS plateau, at a magnitude consistent with the pre-process-bigraph version of this project.
+  main_expert_question: Is a fixed 90% growth-floor during EPS production biologically defensible, or should it be replaced with a data-derived value?
+question: "Does EpsFBAStep — a two-stage growth-then-EPS[e] dFBA Process built on\nspatio-flux's DynamicFBA — correctly reproduce the amino-acid depletion\ncascade and growth/EPS plateau dynamics of E. coli on LB medium over a\n5-hour static-phase batch run?\n"
 baseline:
-  - name: baseline
-    composite: pbg_eps_biofilm.composites.eps_biofilm_static.eps_biofilm_static
-    params: {}
+- name: baseline
+  composite: pbg_eps_biofilm.composites.eps_biofilm_static.eps_biofilm_static
+  params: {}
 variants: []
-
 behavior_tests:
-  - name: reaches-growth-eps-plateau
-    classification: primary
-    question: "Does the batch culture reach a growth/EPS plateau within the 5h run window?"
-    measure:
-      kind: listener_median
-      path: fields.biomass
-      window: seconds=300
-    pass_if:
-      op: at_least
-      low: 1.6
-      provenance:
-        kind: exploratory
-        note: "Observed plateau biomass=1.6503 gDW/L at t=4.0h under dt=0.01h; threshold set just below that observed value."
-    status: passed
-  - name: no-negative-eps-flux
-    classification: regression
-    question: "Does accumulated EPS[e] ever decrease once amino acids are depleted and growth becomes infeasible?"
-    measure:
-      kind: listener_median
-      path: fields.eps
-      window: whole_run
-    pass_if:
-      op: at_least
-      low: 0.0
-      provenance:
-        kind: theory
-        note: >-
-          Regression test for a real bug found during development: update()
-          originally read sol.fluxes without checking sol.status, producing a
-          constant -0.64/step EPS delta once the depletion caps made growth
-          infeasible. Fixed by returning zero-deltas on any non-optimal solve.
-    status: passed
-
+- name: reaches-growth-eps-plateau
+  classification: primary
+  question: Does the batch culture reach a growth/EPS plateau within the 5h run window?
+  measure:
+    kind: listener_median
+    path: fields.biomass
+    window: seconds=300
+  pass_if:
+    op: at_least
+    low: 1.6
+    provenance:
+      kind: exploratory
+      note: Observed plateau biomass=1.6503 gDW/L at t=4.0h under dt=0.01h; threshold set just below that observed value.
+  status: passed
+- name: no-negative-eps-flux
+  classification: regression
+  question: Does accumulated EPS[e] ever decrease once amino acids are depleted and growth becomes infeasible?
+  measure:
+    kind: listener_median
+    path: fields.eps
+    window: whole_run
+  pass_if:
+    op: at_least
+    low: 0.0
+    provenance:
+      kind: theory
+      note: 'Regression test for a real bug found during development: update() originally read sol.fluxes without checking sol.status, producing a constant -0.64/step EPS delta once the depletion caps made growth infeasible. Fixed by returning zero-deltas on any non-optimal solve.'
+  status: passed
 readouts:
-  - name: biomass-trajectory
-    store_path: fields.biomass
-    description: "E. coli biomass concentration over the 5h static-phase run."
-    units: gDW/L
-    status: available
-  - name: eps-accumulated
-    store_path: fields.eps
-    description: "Accumulated pooled EPS[e] mass (cellulose + colanic acid + PNAG, 1/3 mass-basis each)."
-    units: mg
-    status: available
-  - name: amino-acid-remaining
-    store_path: fields.substrates
-    description: "Remaining concentration of each of the 20 LB amino acids (map, keyed by exchange reaction id)."
-    units: mM
-    status: available
-
+- name: biomass-trajectory
+  store_path: fields.biomass
+  description: E. coli biomass concentration over the 5h static-phase run.
+  units: gDW/L
+  status: available
+- name: eps-accumulated
+  store_path: fields.eps
+  description: Accumulated pooled EPS[e] mass (cellulose + colanic acid + PNAG, 1/3 mass-basis each).
+  units: mg
+  status: available
+- name: amino-acid-remaining
+  store_path: fields.substrates
+  description: Remaining concentration of each of the 20 LB amino acids (map, keyed by exchange reaction id).
+  units: mM
+  status: available
 model_change:
   base_model: pbg_eps_biofilm/eps_ecoli_model_lb_epspool.xml
-  new_processes: [EpsFBAStep]
+  new_processes:
+  - EpsFBAStep
   new_state_variables: []
-  new_parameters: [growth_floor_fraction, aa_bounds]
+  new_parameters:
+  - growth_floor_fraction
+  - aa_bounds
   new_listeners: []
   modified_processes: []
-
 robustness:
   n_replicates: 1
-  seeds: [0]
+  seeds:
+  - 0
   parameter_sweep: false
-
 limitations:
-  - "Deterministic FBA — no stochasticity, so single-seed is sufficient; this does not exercise inter-cell variability."
-  - "Static phase only (t=0-4h); no spatial structure, no flow, no carrying-capacity mechanism for the later biofilm phase."
-  - "The 90% growth-floor, hard-cap depletion mechanism, and 1/3-each EPS[e] split are modeling assumptions, not literature-derived values."
-
-falsifiability: >-
-  Would be overturned by disagreement with the independent cdFBA
-  implementation (cdfba-dfba-static) or with a from-scratch raw-cobra manual
-  replication of the same algorithm against the same model file — both were
-  checked and matched exactly.
-
+- "Deterministic FBA — no stochasticity, so single-seed is sufficient; this does not exercise inter-cell variability."
+- Static phase only (t=0-4h); no spatial structure, no flow, no carrying-capacity mechanism for the later biofilm phase.
+- The 90% growth-floor, hard-cap depletion mechanism, and 1/3-each EPS[e] split are modeling assumptions, not literature-derived values.
+falsifiability: "Would be overturned by disagreement with the independent cdFBA implementation (cdfba-dfba-static) or with a from-scratch raw-cobra manual replication of the same algorithm against the same model file — both were checked and matched exactly."
 conclusion_verdicts:
   regression_compatibility:
-    basis: "Builds and runs cleanly against process-bigraph 1.7.1 / bigraph-schema 1.4.5 after the upstream recursion-bug package upgrade."
+    basis: Builds and runs cleanly against process-bigraph 1.7.1 / bigraph-schema 1.4.5 after the upstream recursion-bug package upgrade.
   biological_validation:
-    basis: >-
-      Reproduces the qualitative depletion-cascade + plateau behavior
-      expected of batch E. coli culture; the specific growth-floor and
-      depletion-mechanism assumptions remain unvalidated against literature.
+    basis: Reproduces the qualitative depletion-cascade + plateau behavior expected of batch E. coli culture; the specific growth-floor and depletion-mechanism assumptions remain unvalidated against literature.
   explanatory_gain:
-    basis: >-
-      Confirms the process-bigraph port preserves the pre-port model's
-      dynamics, and surfaces two real implementation bugs (see findings)
-      that would otherwise have silently corrupted downstream trajectories.
-
+    basis: Confirms the process-bigraph port preserves the pre-port model's dynamics, and surfaces two real implementation bugs (see findings) that would otherwise have silently corrupted downstream trajectories.
 findings:
-  - id: F-01
-    tier: observation
-    statement: >-
-      The 5-hour static-phase run reaches a growth/EPS plateau at t=4.0h
-      (biomass=1.6503 gDW/L, eps=265.837 mg) under dt=0.01h, driven by
-      sequential amino-acid depletion.
-    claim_scope: local-implementation
-    lifecycle_state: observation
-    generality:
-      axes_tested: [alt_implementation]
-      level: instance_specific
-    next_action: "Run a formal dt convergence test on the full multi-step loop (not yet done — only spot-checked at the single-step level pre-port)."
-    evidence: {from_test: reaches-growth-eps-plateau}
-  - id: F-02
-    tier: mechanism
-    statement: >-
-      EPS[e] continues to accumulate after amino-acid uptake is exhausted
-      because growth (not EPS synthesis) is the flux floored to 90% of its
-      unconstrained optimum — EPS production draws on flux still available
-      once growth's own demand is capped.
-    claim_scope: mechanism
-    mechanism_origin: engineered
-    lifecycle_state: candidate-explanation
-    generality:
-      axes_tested: [alt_implementation]
-      level: mechanism
-    next_action: ""
-    evidence: {from_test: no-negative-eps-flux}
+- id: F-01
+  tier: observation
+  statement: The 5-hour static-phase run reaches a growth/EPS plateau at t=4.0h (biomass=1.6503 gDW/L, eps=265.837 mg) under dt=0.01h, driven by sequential amino-acid depletion.
+  claim_scope: local-implementation
+  lifecycle_state: observation
+  generality:
+    axes_tested:
+    - alt_implementation
+    level: instance_specific
+  next_action: "Run a formal dt convergence test on the full multi-step loop (not yet done — only spot-checked at the single-step level pre-port)."
+  evidence:
+    from_test: reaches-growth-eps-plateau
+- id: F-02
+  tier: mechanism
+  statement: "EPS[e] continues to accumulate after amino-acid uptake is exhausted because growth (not EPS synthesis) is the flux floored to 90% of its unconstrained optimum — EPS production draws on flux still available once growth's own demand is capped."
+  claim_scope: mechanism
+  mechanism_origin: engineered
+  lifecycle_state: candidate-explanation
+  generality:
+    axes_tested:
+    - alt_implementation
+    level: mechanism
+  next_action: ''
+  evidence:
+    from_test: no-negative-eps-flux
+runs:
+- name: pbg_eps_biofilm.composites.eps_biofilm_static.eps_biofilm_static__1785777239__573ad7
+  status: completed
+  timestamp: 1785777263.3587682
+  emitter:
+    kind: unknown
+  params: '{}'
+  provenance:
+    params:
+      n_steps:
+        value: 5
+        source: resolved
+    params_captured_at: '2026-08-03'
+    params_source: dashboard-runner
+simulation_set:
+- name: baseline-baseline
+  kind: single
+  base_model: pbg_eps_biofilm.composites.eps_biofilm_static.eps_biofilm_static
+  is_baseline: true
+  status: ran
+  metrics:
+  - biomass-trajectory
+  - eps-accumulated
+  - amino-acid-remaining
+pipeline_gate:
+  gate_evaluator:
+    result: blocked
+    blocked_by:
+    - reaches-growth-eps-plateau
+    - no-negative-eps-flux
+    evaluated_by: code
+    diverges_from_authored: false
