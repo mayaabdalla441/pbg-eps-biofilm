@@ -1,10 +1,8 @@
 # eps-biofilm
 
 <!-- BEGIN dashboard -->
-> ## 📊 Live dashboard
-> A read-only dashboard + investigation reports auto-publish to GitHub Pages on
-> every merge to `main` — the live link appears here after the first publish
-> (enable once: Settings → Pages → Source = `gh-pages`).
+> ## 📊 [**Live dashboard →**](https://mayaabdalla441.github.io/pbg-eps-biofilm/dashboard/)
+> Browse every investigation & study interactively, or read the [published investigation reports](https://mayaabdalla441.github.io/pbg-eps-biofilm/). Auto-published from `main` on every merge.
 <!-- END dashboard -->
 
 A Process-Bigraph research workspace scaffolded from
