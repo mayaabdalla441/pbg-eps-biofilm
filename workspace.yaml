@@ -27,5 +27,4 @@ imports:
     path: external/spatio-flux
     description: spatio-temporal microbial simulations with Vivarium 2.0
     installed: true
-    install_path: /Users/mayaabdalla/PycharmProjects/pbg-eps-biofilm/external/spatio-flux
     package: spatio_flux
