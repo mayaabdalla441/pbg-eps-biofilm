@@ -37,6 +37,19 @@ class EpsFBAStep(DynamicFBA):
         # exactly reproducing prior validated static-phase behavior.
         "flow_start_time_h": {"_type": "float", "_default": 1e9},
         "biomass_carrying_capacity": {"_type": "float", "_default": 1e9},
+        # QUICK, EXPLICITLY-APPROXIMATE stress test of the diffusion-limitation hypothesis
+        # (flow_phase_open_issues memory item, 2026-08-04): the well-mixed model has no spatial
+        # structure, so this is a phenomenological stand-in, NOT the real mechanism (that needs
+        # viva-biofilm's diff_biofilm support -- currently a stub, "unused until Phase B" per
+        # world.rs -- ask sent to the PI, response pending). During flow, amino-acid uptake is
+        # throttled by a factor that decays from 1.0 (no limitation) toward
+        # diffusion_limitation_floor as accumulated EPS grows past diffusion_limitation_scale,
+        # approximating reduced nutrient diffusion into a maturing, matrix-dense biofilm.
+        # diffusion_limitation_floor=0.25 matches Stewart 2003's organic-solute D_e/D_aq ratio;
+        # diffusion_limitation_scale (mg) has NO data/literature anchor -- swept, not fitted.
+        # Defaults (floor=1.0, scale=1e9) are a no-op, reproducing prior validated behavior.
+        "diffusion_limitation_scale": {"_type": "float", "_default": 1e9},
+        "diffusion_limitation_floor": {"_type": "float", "_default": 1.0},
     }
 
     def initialize(self, config):
@@ -77,10 +90,15 @@ class EpsFBAStep(DynamicFBA):
         # depleting. See flow_phase_open_issues memory item D.8.
         flowing = global_time >= self.config["flow_start_time_h"]
 
+        # Diffusion-limitation stress test (see config_schema comment) -- decays from 1.0 toward
+        # diffusion_limitation_floor as eps_current grows past diffusion_limitation_scale.
+        floor = self.config["diffusion_limitation_floor"]
+        diffusion_factor = floor + (1.0 - floor) * np.exp(-eps_current / self.config["diffusion_limitation_scale"])
+
         with self.model:
             for aa_id, max_rate in self.config['aa_bounds'].items():
                 if flowing:
-                    cap = max_rate
+                    cap = max_rate * diffusion_factor
                 else:
                     remaining = substrates.get(aa_id, 0.0)
                     cap = min(max_rate, remaining / (biomass * interval)) if biomass > 0 else max_rate

@@ -41,12 +41,16 @@ DEFAULT_INITIAL_AA_CONC = {
         # is an AREAL density, ~0.10-0.22 mg/cm^2, which isn't yet in the same unit space as
         # this model's biomass state -- see item B.5, blocked on Nona's t=0 inoculation answer).
         "biomass_carrying_capacity": {"type": "float", "default": 2.0},
+        # Diffusion-limitation stress test (see EpsFBAStep) -- floor=1.0/scale=1e9 is a no-op.
+        "diffusion_limitation_scale": {"type": "float", "default": 1e9},
+        "diffusion_limitation_floor": {"type": "float", "default": 1.0},
     },
 )
 def eps_biofilm_flow_scaffold(core=None, *, model_file="eps_ecoli_model_lb_epspool.xml",
                                growth_floor_fraction=0.9, initial_biomass=0.01, dt=0.01,
                                eps_shed_rate=0.0, growth_rate_cap_fraction=1.0,
-                               flow_start_time_h=3.0, biomass_carrying_capacity=2.0):
+                               flow_start_time_h=3.0, biomass_carrying_capacity=2.0,
+                               diffusion_limitation_scale=1e9, diffusion_limitation_floor=1.0):
     return {
         "eps_fba": {
             "_type": "process",
@@ -60,6 +64,8 @@ def eps_biofilm_flow_scaffold(core=None, *, model_file="eps_ecoli_model_lb_epspo
                 "growth_rate_cap_fraction": growth_rate_cap_fraction,
                 "flow_start_time_h": flow_start_time_h,
                 "biomass_carrying_capacity": biomass_carrying_capacity,
+                "diffusion_limitation_scale": diffusion_limitation_scale,
+                "diffusion_limitation_floor": diffusion_limitation_floor,
                 "aa_bounds": DEFAULT_AA_BOUNDS,
             },
             "inputs": {
