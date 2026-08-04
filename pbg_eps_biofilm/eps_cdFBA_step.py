@@ -23,6 +23,9 @@ class EpsCdFBAStep(dFBA):
         # Sensitivity-test knob, kept in sync with EpsFBAStep -- see that file's comment and
         # flow_phase_open_issues memory item A.1. Default 1.0 = no-op.
         "growth_rate_cap_fraction": {"_type": "float", "_default": 1.0},
+        # First-order EPS turnover/shedding rate (1/h), kept in sync with EpsFBAStep -- see that
+        # file's comment and flow_phase_open_issues memory item C.7. Default 0.0 = no-op.
+        "eps_shed_rate": {"_type": "float", "_default": 0.0},
     }
 
     def inputs(self):
@@ -40,6 +43,7 @@ class EpsCdFBAStep(dFBA):
         concentrations = env["concentrations"]
         name = self.config["name"]
         biomass = concentrations.get(name, 0.0)
+        eps_current = concentrations.get("eps", 0.0)
 
         with self.model:
             # Hard-cap each amino acid's uptake bound by what's actually left --
@@ -56,10 +60,13 @@ class EpsCdFBAStep(dFBA):
             sol1 = self.model.optimize()
             if sol1.status != "optimal":
                 # Depletion caps make growth infeasible this step -- don't trust flux
-                # values from a non-optimal solve. No growth, no consumption, no EPS.
+                # values from a non-optimal solve. No growth, no consumption, no EPS
+                # PRODUCTION -- but shedding still applies (mechanical/enzymatic, not
+                # dependent on this step's FBA solve). See the matching fix + comment in
+                # EpsFBAStep and flow_phase_open_issues memory item C.7.
                 zero_update = {aa_id: 0.0 for aa_id in self.config["aa_bounds"]}
                 zero_update[name] = 0.0
-                zero_update["eps"] = 0.0
+                zero_update["eps"] = -self.config["eps_shed_rate"] * eps_current * interval
                 return {"shared_environment": {"counts": zero_update}}
 
             mu = sol1.fluxes[self.biomass_identifier]
@@ -77,17 +84,25 @@ class EpsCdFBAStep(dFBA):
             self.model.objective = self.config["eps_reaction_id"]
             sol2 = self.model.optimize()
             if sol2.status != "optimal":
+                # Shedding still applies here too (see the matching comment on stage 1's
+                # bailout above).
                 zero_update = {aa_id: 0.0 for aa_id in self.config["aa_bounds"]}
                 zero_update[name] = 0.0
-                zero_update["eps"] = 0.0
+                zero_update["eps"] = -self.config["eps_shed_rate"] * eps_current * interval
                 return {"shared_environment": {"counts": zero_update}}
 
             mu_realized = sol2.fluxes[self.biomass_identifier]
             aa_flux = {aa_id: sol2.fluxes.get(aa_id, 0.0) for aa_id in self.config["aa_bounds"]}
             eps_flux = sol2.fluxes[self.config["eps_reaction_id"]]
 
+        # First-order shedding: d(EPS)/dt = production - eps_shed_rate * EPS. concentrations
+        # already carries the current EPS mass (cdFBA's volumetric port exposes the full current
+        # state, unlike EpsFBAStep which needed an explicit new input wire for this).
+        eps_produced = eps_flux * biomass * interval
+        eps_shed = self.config["eps_shed_rate"] * eps_current * interval
+
         counts_update = {aa_id: flux * biomass * interval for aa_id, flux in aa_flux.items()}
         counts_update[name] = mu_realized * biomass * interval
-        counts_update["eps"] = eps_flux * biomass * interval
+        counts_update["eps"] = eps_produced - eps_shed
 
         return {"shared_environment": {"counts": counts_update}}

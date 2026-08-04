@@ -32,12 +32,17 @@ BIOMASS_NAME = "eps_biofilm"
         "growth_floor_fraction": {"type": "float", "default": 0.9},
         "initial_biomass": {"type": "float", "default": 0.01},
         "dt": {"type": "float", "default": 0.01},
+        # First-order EPS turnover/shedding rate (1/h), kept in sync with the spatio-flux
+        # composite -- see EpsCdFBAStep's comment. 0.0 is a no-op.
+        "eps_shed_rate": {"type": "float", "default": 0.0},
     },
 )
 def eps_biofilm_static_cdfba(core=None, *, model_file="eps_ecoli_model_lb_epspool.xml",
-                              growth_floor_fraction=0.9, initial_biomass=0.01, dt=0.01):
-    # dt=0.01h -- same working assumption as the spatio-flux version, NOT yet
-    # convergence-tested on this cdFBA-based loop specifically.
+                              growth_floor_fraction=0.9, initial_biomass=0.01, dt=0.01,
+                              eps_shed_rate=0.0):
+    # dt=0.01h -- convergence-tested on the spatio-flux implementation 2026-08-04
+    # (run_dt_convergence.py); not independently re-checked on this cdFBA-based loop, but both
+    # implementations have matched exactly at every other checkpoint so far.
     initial_concentrations = dict(DEFAULT_INITIAL_AA_CONC)
     initial_concentrations[BIOMASS_NAME] = initial_biomass
     initial_concentrations["eps"] = 0.0
@@ -51,6 +56,7 @@ def eps_biofilm_static_cdfba(core=None, *, model_file="eps_ecoli_model_lb_epspoo
                 "name": BIOMASS_NAME,
                 "eps_reaction_id": "EX_eps_e",
                 "growth_floor_fraction": growth_floor_fraction,
+                "eps_shed_rate": eps_shed_rate,
                 "aa_bounds": DEFAULT_AA_BOUNDS,
             },
             "inputs": {
