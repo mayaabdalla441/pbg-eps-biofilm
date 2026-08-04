@@ -5,6 +5,15 @@ title: "Static-Phase EPS dFBA — Framework Cross-Validation"
 created: '2026-08-03'
 status: running
 
+inputs:
+  datasets:
+    - inputs/datasets/combined_eps_dataset_8_to_80h.csv
+    - inputs/datasets/combined_eps_dataset_8_to_80h.xlsx
+  references: []
+  expert_docs:
+    - name: "EPS 8-80h 2D analysis in 3D chamber report (Nona Hashemi)"
+      path: inputs/expert_docs/EPS_8_to_80h_2D_analysis_in_3D_chamber_report.docx
+
 question: |
   Does a two-stage (maximize growth, then floor growth and maximize pooled EPS[e])
   dynamic FBA correctly reproduce the expected batch-culture dynamics -- exponential
