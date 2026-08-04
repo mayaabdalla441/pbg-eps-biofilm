@@ -35,11 +35,16 @@ executive:
     a from-scratch manual calculation.
   verdict: >-
     Both implementations reproduce the expected depletion-cascade dynamics and
-    agree with each other exactly (biomass=1.6503 gDW/L, EPS=265.837 mg at the
-    t=4.0h plateau) and with an independent from-scratch raw-cobra replication of
-    the first 20 timesteps. Two real bugs were found and fixed during
+    agree with each other exactly (biomass=1.6262 gDW/L, EPS=283.527 mg at the
+    t≈4.4h plateau) and with an independent from-scratch raw-cobra replication of
+    the first 20 timesteps. Three real bugs were found and fixed during
     development (untrusted flux on an infeasible solve in the spatio-flux
-    version; a Volumetric-type counts-dropping bug in the cdFBA version).
+    version; a Volumetric-type counts-dropping bug in the cdFBA version; a
+    substrate/biomass-accounting inconsistency in both, where update() reported
+    stage 1's -- growth-maximizing -- flux instead of stage 2's -- the actual
+    floored-growth-then-EPS-maximizing solve -- for biomass and substrate
+    consumption, which is not mass-balanced. Fixed 2026-08-04; headline numbers
+    above reflect the fix, not the original pre-fix values.).
   verdict_status: passed
   verdict_detail: >-
     Code-correctness is verified: both implementations correctly execute the
@@ -72,7 +77,7 @@ scientific_argument:
   evidence_for:
     - "Both EpsFBAStep (spatio-flux) and EpsCdFBAStep (cdFBA) produce identical trajectories at every recorded timestep through the full 5h run, including the exact plateau time and values."
     - "A from-scratch, framework-free manual replication (raw cobra calls only) of the first 20 timesteps matches both implementations exactly, once an ordering bug in the manual script itself was found and fixed."
-    - "The growth-plateau timing (t=4.0h at dt=0.01h) falls between the two dt-resolution measurements from the original (non-process-bigraph) project (t~3.83h at dt=0.001h, t~4.2h at dt=0.1h), consistent with expected numerical convergence behavior."
+    - "The growth-plateau timing (t≈4.4h at dt=0.01h) falls close to the two dt-resolution measurements from the original (non-process-bigraph) project (t~3.83h at dt=0.001h, t~4.2h at dt=0.1h) -- note the original project's implementation predates the 2026-08-04 substrate-accounting fix, so this is not a fully apples-to-apples comparison."
   evidence_against: []
   key_figures:
     - "workspace/investigations/eps-biofilm-dfba-static/studies/spatioflux-dfba-static/charts/trajectory.png"
@@ -80,6 +85,7 @@ scientific_argument:
   caveats:
     - "Cross-implementation agreement verifies code correctness, not biological correctness -- both implementations wrap the exact same model file, aa_bounds/initial_aa_conc data, and two-stage design, so a wrong assumption in any of those would be reproduced identically by both, not caught by this cross-check."
     - "dt=0.01h has not been formally convergence-tested on the full multi-step loop (only spot-checked at the single-step level in earlier, pre-process-bigraph work)."
+    - "A growth-rate-cap sensitivity test (EpsFBAStep's growth_rate_cap_fraction, default 1.0/no-op) found the model highly sensitive to whether cells grow at the unconstrained FBA optimum vs. a capped fraction of it -- even a 75%-of-optimum cap produces roughly 2.3x the baseline's EPS. Not yet a validated mechanism, just a sensitivity finding; see flow_phase_open_issues project notes."
 
 biological_story: |
   When E. coli is growing in a nutrient-rich medium like LB, it dedicates most
@@ -107,7 +113,7 @@ biological_story: |
   The mechanism was implemented twice, independently, on two different
   process-bigraph frameworks (spatio-flux and cdFBA) as a code-correctness
   check before relying on it further. Both reach the identical plateau
-  (t=4.0h, biomass=1.6503 gDW/L, eps=265.837 mg under LB amino-acid
+  (t≈4.4h, biomass=1.6262 gDW/L, eps=283.527 mg under LB amino-acid
   conditions), and a third, framework-free manual replication against raw
   cobra calls matches both exactly. What this does NOT establish is whether
   90% is the biologically correct growth floor, or whether hard-cap depletion

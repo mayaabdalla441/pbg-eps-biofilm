@@ -29,10 +29,13 @@ DEFAULT_INITIAL_AA_CONC = {
         "growth_floor_fraction": {"type": "float", "default": 0.9},
         "initial_biomass": {"type": "float", "default": 0.01},
         "dt": {"type": "float", "default": 0.01},
+        # Sensitivity-test knob (see EpsFBAStep) -- 1.0 is a no-op, reproduces validated behavior.
+        "growth_rate_cap_fraction": {"type": "float", "default": 1.0},
     },
 )
 def eps_biofilm_static(core=None, *, model_file="eps_ecoli_model_lb_epspool.xml",
-                        growth_floor_fraction=0.9, initial_biomass=0.01, dt=0.01):
+                        growth_floor_fraction=0.9, initial_biomass=0.01, dt=0.01,
+                        growth_rate_cap_fraction=1.0):
     # dt=0.01h is a working assumption, NOT yet convergence-tested on the full loop --
     # an earlier single-step spot-check (dt=0.1h vs dt=0.001h) showed ~9% timing drift
     # in when the amino-acid depletion cascade completes.
@@ -45,6 +48,7 @@ def eps_biofilm_static(core=None, *, model_file="eps_ecoli_model_lb_epspool.xml"
                 "biomass_reaction_id": "BIOMASS_Ec_iML1515_core_75p37M",
                 "eps_reaction_id": "EX_eps_e",
                 "growth_floor_fraction": growth_floor_fraction,
+                "growth_rate_cap_fraction": growth_rate_cap_fraction,
                 "aa_bounds": DEFAULT_AA_BOUNDS,
             },
             "inputs": {

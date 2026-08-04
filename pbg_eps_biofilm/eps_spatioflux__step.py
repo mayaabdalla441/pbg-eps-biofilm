@@ -17,6 +17,12 @@ class EpsFBAStep(DynamicFBA):
         "eps_reaction_id": {"_type": "string", "_default": "EX_eps_e"},
         "growth_floor_fraction": {"_type": "float", "_default": 0.9},
         "aa_bounds": "map[float]",
+        # Sensitivity-test knob, NOT a validated biological mechanism: scales the FBA-optimal
+        # growth rate down by this fraction before the floor-then-maximize-EPS stage, to test
+        # how sensitive time-to-depletion/total-EPS are to the (unrealistic) assumption that
+        # cells grow at their unconstrained planktonic optimum. Default 1.0 = no-op, exactly
+        # reproduces prior validated behavior. See flow_phase_open_issues memory item A.1.
+        "growth_rate_cap_fraction": {"_type": "float", "_default": 1.0},
     }
 
     def initialize(self, config):
@@ -61,19 +67,43 @@ class EpsFBAStep(DynamicFBA):
                     "eps": 0.0,
                 }
             mu = sol1.fluxes[self.config['biomass_reaction_id']]
-            aa_flux = {aa_id: sol1.fluxes.get(aa_id, 0.0) for aa_id in self.config['aa_bounds']}
 
-            #Stage #2: floor growth, max EPS[e]
+            # Sensitivity-test knob (flow_phase_open_issues memory item A.1), NOT a validated
+            # biological mechanism: scales down the reference growth rate used to set stage 2's
+            # floor, to test sensitivity to the (unrealistic) assumption that cells grow at their
+            # unconstrained planktonic optimum. Default 1.0 = no-op.
+            mu_reference = mu * self.config['growth_rate_cap_fraction']
+
+            #Stage #2: floor growth at growth_floor_fraction * mu_reference, max EPS[e].
+            # Stage 1's mu and aa_flux are NOT used for the reported outputs below -- they were
+            # only needed to compute the floor. Reporting them directly would mean claiming both
+            # the unconstrained-growth flux solution AND the floored-growth EPS-maximizing flux
+            # solution happened in the same step, which isn't mass-balanced: a single finite
+            # nutrient pool can only support one flux distribution per step. Stage 2's own solve
+            # is the one real, self-consistent answer -- growth, substrate uptake, and EPS must
+            # all be read from sol2 (see flow_phase_open_issues memory item E). In practice sol2's
+            # realized growth settles at (or essentially at) the floor, since growing beyond it
+            # isn't rewarded by the EPS-maximizing objective.
             self.model.reactions.get_by_id(self.config["biomass_reaction_id"]).lower_bound = \
-                self.config["growth_floor_fraction"] * mu
+                self.config["growth_floor_fraction"] * mu_reference
             self.model.objective = self.config['eps_reaction_id']
             sol2 = self.model.optimize()
-            eps_flux = sol2.fluxes[self.config['eps_reaction_id']] if sol2.status == 'optimal' else 0.0
+            if sol2.status != 'optimal':
+                # Stage 2's constraint is a strict relaxation of stage 1's (a lower floor on an
+                # already-feasible reaction), so this should not normally happen -- treat as the
+                # same "nothing trustworthy to report" case as an infeasible stage 1.
+                return {
+                    "substrates": {aa_id: 0.0 for aa_id in self.config['aa_bounds']},
+                    "biomass": 0.0,
+                    "eps": 0.0,
+                }
+            mu_realized = sol2.fluxes[self.config['biomass_reaction_id']]
+            aa_flux = {aa_id: sol2.fluxes.get(aa_id, 0.0) for aa_id in self.config['aa_bounds']}
+            eps_flux = sol2.fluxes[self.config['eps_reaction_id']]
 
         return{
           "substrates": {aa_id: flux * biomass * interval for aa_id, flux in aa_flux.items()},
-          "biomass": mu * biomass * interval,
+          "biomass": mu_realized * biomass * interval,
           "eps": eps_flux * biomass * interval,
-
         }
 

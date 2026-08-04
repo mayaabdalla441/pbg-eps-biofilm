@@ -20,6 +20,9 @@ class EpsCdFBAStep(dFBA):
         "eps_reaction_id": {"_type": "string", "_default": "EX_eps_e"},
         "growth_floor_fraction": {"_type": "float", "_default": 0.9},
         "aa_bounds": "map[float]",
+        # Sensitivity-test knob, kept in sync with EpsFBAStep -- see that file's comment and
+        # flow_phase_open_issues memory item A.1. Default 1.0 = no-op.
+        "growth_rate_cap_fraction": {"_type": "float", "_default": 1.0},
     }
 
     def inputs(self):
@@ -60,17 +63,31 @@ class EpsCdFBAStep(dFBA):
                 return {"shared_environment": {"counts": zero_update}}
 
             mu = sol1.fluxes[self.biomass_identifier]
-            aa_flux = {aa_id: sol1.fluxes.get(aa_id, 0.0) for aa_id in self.config["aa_bounds"]}
+            mu_reference = mu * self.config['growth_rate_cap_fraction']
 
-            # Stage 2: floor growth, maximize EPS[e]
+            # Stage 2: floor growth at growth_floor_fraction * mu_reference, maximize EPS[e].
+            # Stage 1's mu and aa_flux are NOT used for the reported outputs below -- only to
+            # compute the floor. Reporting them directly would mean claiming both the
+            # unconstrained-growth flux solution AND the floored-growth EPS-maximizing flux
+            # solution happened in the same step, which isn't mass-balanced. Stage 2's own solve
+            # is the one real, self-consistent answer (see flow_phase_open_issues memory item E,
+            # and the matching fix/comment in EpsFBAStep).
             self.model.reactions.get_by_id(self.biomass_identifier).lower_bound = \
-                self.config["growth_floor_fraction"] * mu
+                self.config["growth_floor_fraction"] * mu_reference
             self.model.objective = self.config["eps_reaction_id"]
             sol2 = self.model.optimize()
-            eps_flux = sol2.fluxes[self.config["eps_reaction_id"]] if sol2.status == "optimal" else 0.0
+            if sol2.status != "optimal":
+                zero_update = {aa_id: 0.0 for aa_id in self.config["aa_bounds"]}
+                zero_update[name] = 0.0
+                zero_update["eps"] = 0.0
+                return {"shared_environment": {"counts": zero_update}}
+
+            mu_realized = sol2.fluxes[self.biomass_identifier]
+            aa_flux = {aa_id: sol2.fluxes.get(aa_id, 0.0) for aa_id in self.config["aa_bounds"]}
+            eps_flux = sol2.fluxes[self.config["eps_reaction_id"]]
 
         counts_update = {aa_id: flux * biomass * interval for aa_id, flux in aa_flux.items()}
-        counts_update[name] = mu * biomass * interval
+        counts_update[name] = mu_realized * biomass * interval
         counts_update["eps"] = eps_flux * biomass * interval
 
         return {"shared_environment": {"counts": counts_update}}

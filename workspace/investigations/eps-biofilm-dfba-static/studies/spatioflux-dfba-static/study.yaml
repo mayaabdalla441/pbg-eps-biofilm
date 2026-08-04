@@ -34,7 +34,7 @@ behavior_tests:
     low: 1.6
     provenance:
       kind: exploratory
-      note: Observed plateau biomass=1.6503 gDW/L at t=4.0h under dt=0.01h; threshold set just below that observed value.
+      note: "Observed plateau biomass=1.6262 gDW/L at t≈4.4h under dt=0.01h; threshold set just below that observed value."
   status: passed
 - name: no-negative-eps-flux
   classification: regression
@@ -92,11 +92,11 @@ conclusion_verdicts:
   biological_validation:
     basis: Reproduces the qualitative depletion-cascade + plateau behavior expected of batch E. coli culture; the specific growth-floor and depletion-mechanism assumptions remain unvalidated against literature.
   explanatory_gain:
-    basis: Confirms the process-bigraph port preserves the pre-port model's dynamics, and surfaces two real implementation bugs (see findings) that would otherwise have silently corrupted downstream trajectories.
+    basis: Confirms the process-bigraph port preserves the pre-port model's dynamics, and surfaces three real implementation bugs (see findings) that would otherwise have silently corrupted downstream trajectories.
 findings:
 - id: F-01
   tier: observation
-  statement: The 5-hour static-phase run reaches a growth/EPS plateau at t=4.0h (biomass=1.6503 gDW/L, eps=265.837 mg) under dt=0.01h, driven by sequential amino-acid depletion.
+  statement: "The 5-hour static-phase run reaches a growth/EPS plateau at t≈4.4h (biomass=1.6262 gDW/L, eps=283.527 mg) under dt=0.01h, driven by sequential amino-acid depletion."
   claim_scope: local-implementation
   lifecycle_state: observation
   generality:
@@ -119,10 +119,22 @@ findings:
   next_action: ''
   evidence:
     from_test: no-negative-eps-flux
+- id: F-03
+  tier: observation
+  statement: "update() originally reported biomass and substrate consumption from stage 1's (growth-maximizing) flux instead of stage 2's (the actual floored-growth-then-EPS-maximizing solve) -- not mass-balanced, since a single finite nutrient pool can only support one flux distribution per step. Fixed 2026-08-04: all three outputs (biomass, substrates, eps) now read from stage 2. Shifted the headline plateau from (biomass=1.6503, eps=265.837, t=4.0h) to (biomass=1.6262, eps=283.527, t≈4.4h) -- a small biomass decrease, ~7% EPS increase, and later plateau."
+  claim_scope: local-implementation
+  lifecycle_state: observation
+  generality:
+    axes_tested:
+    - alt_implementation
+    level: instance_specific
+  next_action: Re-check whether this also shifts the depletion-cascade ORDER (not just totals) once a per-amino-acid breakdown is compared pre/post fix.
+  evidence:
+    from_test: reaches-growth-eps-plateau
 runs:
-- name: pbg_eps_biofilm.composites.eps_biofilm_static.eps_biofilm_static__1785777239__573ad7
+- name: pbg_eps_biofilm.composites.eps_biofilm_static.eps_biofilm_static__1785860950__627642
   status: completed
-  timestamp: 1785777263.3587682
+  timestamp: 1785860971.881995
   emitter:
     kind: unknown
   params: '{}'
@@ -131,7 +143,7 @@ runs:
       n_steps:
         value: 5
         source: resolved
-    params_captured_at: '2026-08-03'
+    params_captured_at: '2026-08-04'
     params_source: dashboard-runner
 simulation_set:
 - name: baseline-baseline
