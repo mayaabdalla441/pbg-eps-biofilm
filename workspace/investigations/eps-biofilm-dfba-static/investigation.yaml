@@ -14,6 +14,101 @@ inputs:
     - name: "EPS 8-80h 2D analysis in 3D chamber report (Nona Hashemi)"
       path: inputs/expert_docs/EPS_8_to_80h_2D_analysis_in_3D_chamber_report.docx
 
+# Literature the agent found and used during calibration -- NOT expert-provided, pending
+# review/approval. On approval, promote each accepted `kind: reference` item into
+# inputs.references above (its `id` doubles as the bib-key) and record on the workbench.
+proposed_inputs:
+  _note: "Agent-suggested literature used during flow-phase calibration -- expert has not yet reviewed/approved any of these."
+  items:
+    - id: stewart2003-diffusion-in-biofilms
+      kind: reference
+      citation: "Stewart, P.S. (2003). Diffusion in Biofilms. Journal of Bacteriology, 185(5), 1485-1491. doi:10.1128/jb.185.5.1485-1491.2003"
+      proposed_by: agent
+      proposed_at: '2026-08-04'
+      rationale: >-
+        Effective diffusivity ratios (D_e/D_aq) for solutes in biofilms relative to water --
+        light gases ~0.6, organic solutes ~0.25, general range 0.2-0.8 (mean ~0.4), depends on
+        biomass density. Source for viva-biofilm's diff_liquid/diff_biofilm solute parameters,
+        motivating a diffusion-limited-EPS-production mechanism (the current well-mixed model
+        cannot reproduce the real EPS-coverage decline at t=72-80h; diffusion limitation into a
+        dense, matrix-encased biofilm is the leading hypothesis).
+      provenance: "web search + WebFetch of the primary review, this session, 2026-08-04"
+      status: pending
+    - id: guglielmi-microfluidic-biofilm-mg1655
+      kind: reference
+      citation: >-
+        "High-Throughput Microfluidic Method To Study Biofilm Formation and Host-Pathogen
+        Interactions in Pathogenic Escherichia coli", Applied and Environmental Microbiology,
+        81(8):2827. PMC4375333.
+      proposed_by: agent
+      proposed_at: '2026-08-04'
+      rationale: >-
+        K-12 MG1655 biovolume-per-substratum-area (7.85 +/- 0.92 um^3/um^2) in a real
+        microfluidic flow channel -- used (with Smaluch et al.'s dry-mass density) to derive a
+        candidate B_max areal density (~0.10-0.22 mg/cm^2), still not yet in the same unit space
+        as this model's biomass state (blocked on real chamber inoculation data).
+      provenance: "web search + WebFetch, this session, 2026-08-04"
+      status: pending
+    - id: smaluch2022-single-cell-growth-kinetics
+      kind: reference
+      citation: >-
+        Smaluch, K., Wollenhaupt, B., Steinhoff, H., Kohlheyer, D., Grünberger, A., Dusny, C.
+        (2022). Assessing the growth kinetics and stoichiometry of Escherichia coli at the
+        single-cell level. Engineering in Life Sciences. doi:10.1002/elsc.202100157
+      proposed_by: agent
+      proposed_at: '2026-08-04'
+      rationale: >-
+        User-supplied paper. K-12 MG1655 single-cell dry-mass density (0.13-0.28 pg/um^3, i.e.
+        g/cm^3) -- used for the B_max areal-density derivation above. Also reports real MG1655
+        Monod kinetics (mu_max=0.66/h, Ks=486+/-234 ug/L glucose) as an independent sanity-check
+        anchor, not yet directly used in calibration.
+      provenance: "user-supplied citation, verified via WebFetch of the PMC open-access mirror, this session, 2026-08-04"
+      status: pending
+    - id: qin2022-ecoli-biofilm-water-content
+      kind: reference
+      citation: >-
+        "Adaptation of Escherichia coli Biofilm Growth, Morphology, and Mechanical Properties to
+        Substrate Water Content", ACS Biomaterials Science & Engineering (2022). PMC8579398.
+      proposed_by: agent
+      proposed_at: '2026-08-04'
+      rationale: >-
+        E. coli K-12 AR3110 macrocolony biofilm dry mass (7.7-11.5 mg) and thickness (60-80 um)
+        on agar. Cross-check estimate for B_max (~4.4-6.5 mg/cm^2, derived by dividing by plate
+        area) -- ~20x higher than the microfluidic-derived estimate, flagged as a different
+        (denser, macrocolony) biofilm regime, not directly comparable to Nona's flow-chamber
+        system.
+      provenance: "web search + WebFetch, this session, 2026-08-04"
+      status: pending
+    - id: pmc7698454-ecoli-eps-areal-mass
+      kind: reference
+      citation: "E. coli intraspecies-diversity biofilm EPS matrix quantification paper. PMC7698454."
+      proposed_by: agent
+      proposed_at: '2026-08-04'
+      rationale: >-
+        Real E. coli EPS areal dry-mass quantification: 73.1 ug/cm^2 (single-strain, 48h,
+        urinary isolates UI1-UI6) vs 19.9 ug/cm^2 (six-strain). Independent EPS-mass data point,
+        not yet used in the current calibration (different strains, different question --
+        genotypic-diversity tradeoff, not temporal dynamics).
+      provenance: "web search + WebFetch, this session, 2026-08-04"
+      status: pending
+    - id: rpos-csgd-stationary-phase-matrix-general
+      kind: mechanism
+      summary: >-
+        Curli/cellulose biosynthesis in E. coli is RpoS-dependent and CsgD-controlled, induced
+        specifically in early stationary phase (growth ~stopped), not during active/near-maximal
+        growth -- aggregated from several papers on the RpoS->MlrA->CsgD regulatory cascade
+        during a web search, NOT a single primary-source quote.
+      proposed_by: agent
+      proposed_at: '2026-08-04'
+      rationale: >-
+        Motivated the growth-rate-cap sensitivity test (flow_phase_open_issues item A.1) and the
+        general framing that EPS production activates as growth winds down rather than
+        continuing alongside near-maximal growth. NEEDS RE-VERIFICATION against one specific
+        primary source (e.g. a Romling or Hengge review) before this goes in any report or paper
+        -- explicitly flagged as unconfirmed when first found.
+      provenance: "aggregated web search, this session, earlier in the flow-phase calibration work"
+      status: pending
+
 question: |
   Does a two-stage (maximize growth, then floor growth and maximize pooled EPS[e])
   dynamic FBA correctly reproduce the expected batch-culture dynamics -- exponential
