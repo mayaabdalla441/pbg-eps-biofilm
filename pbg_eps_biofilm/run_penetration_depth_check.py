@@ -1,6 +1,7 @@
 """Step 1 of the depth-resolved spatial model plan (see
-/Users/mayaabdalla/.claude/plans/pure-gliding-ocean.md): a cheap, throwaway
-diagnostic answering ONE question before any spatial code gets built --
+composites/eps_biofilm_depth_scaffold.py for the full design rationale): a
+cheap, throwaway diagnostic answering ONE question before any spatial code
+gets built --
 
 Does a nutrient gradient across the real 150um chamber height plausibly
 matter at this model's REALIZED (not enzymatic-ceiling) amino-acid uptake

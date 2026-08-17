@@ -1,6 +1,5 @@
 """Depth-resolved (vertical) extension of the validated well-mixed flow-phase
-model. See /Users/mayaabdalla/.claude/plans/pure-gliding-ocean.md for the full
-design rationale; summary:
+model. Full design rationale:
 
 The well-mixed model cannot reproduce Nona's real t=72-80h EPS-coverage
 decline, for a structural reason confirmed twice: a production-side throttle

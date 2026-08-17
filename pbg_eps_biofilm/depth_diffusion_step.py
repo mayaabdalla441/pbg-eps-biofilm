@@ -1,6 +1,6 @@
 """Custom, minimal depth-diffusion Step for the N-layer biofilm model (see
-/Users/mayaabdalla/.claude/plans/pure-gliding-ocean.md). Built as a small local
-replacement for spatio_flux's DiffusionAdvection after a direct smoke test
+composites/eps_biofilm_depth_scaffold.py for the full design rationale). Built
+as a small local replacement for spatio_flux's DiffusionAdvection after a direct smoke test
 confirmed a real shape-order bug for any non-square `n_bins` grid: its
 inputs()/outputs() declare `_shape` from `n_bins` in (nx,ny) order, but its
 internal update() enforces the array shape in (ny,nx) order -- these only ever

@@ -1,5 +1,5 @@
 """Driver for eps_biofilm_depth_scaffold, mirroring run_flow_scaffold.py's pattern.
-See /Users/mayaabdalla/.claude/plans/pure-gliding-ocean.md for the full plan.
+See composites/eps_biofilm_depth_scaffold.py for the full design rationale.
 
 Three phases, run in order:
   1. smoke_test() -- N=2, diffusion off, shedding off: both layers must behave
@@ -140,7 +140,40 @@ def calibrated_sweep(total_hours=80.0, dt=0.01):
             best = (hl, rmse)
 
     print(f"\nBest fit: half_life={best[0]}, RMSE={best[1]:.3f} pct-points")
-    return sweep_results
+    return sweep_results, t_real, coverage_real
+
+
+def plot(sweep_results, t_real, coverage_real,
+         outfile="workspace/investigations/eps-biofilm-dfba-static/inputs/depth_scaffold_sweep.png"):
+    import matplotlib.pyplot as plt
+
+    colors = {None: "#2a78d6", 6: "#eb6834", 12: "#1baf7a", 24: "#8858d0", 48: "#c0392b"}
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
+
+    for hl, (t_model, eps_agg) in sweep_results.items():
+        label = "no shedding" if hl is None else f"T1/2={hl}h"
+        axes[0].plot(t_model, eps_agg, linewidth=2, color=colors[hl], label=label)
+    axes[0].set_title("Aggregate EPS mass across all layers (mg)")
+    axes[0].set_xlabel("t (h)")
+    axes[0].spines[["top", "right"]].set_visible(False)
+    axes[0].legend(fontsize=8)
+
+    axes[1].scatter(t_real, coverage_real, s=14, color="#94a3b8", label="Real EPS coverage (%)", zorder=2)
+    for hl, (t_model, eps_agg) in sweep_results.items():
+        eps_at_real_t = np.interp(t_real, t_model, eps_agg)
+        pred = 100.0 * (1.0 - np.exp(-eps_at_real_t / FITTED_MASS_TO_COVERAGE_SCALE))
+        label = "no shedding" if hl is None else f"T1/2={hl}h"
+        order = np.argsort(t_real)
+        axes[1].plot(t_real[order], pred[order], linewidth=1.5, color=colors[hl], label=label, zorder=3)
+    axes[1].set_title("Predicted vs. real coverage (all still miss the 70-80h decline)")
+    axes[1].set_xlabel("t (h)")
+    axes[1].set_ylabel("EPS coverage (%)")
+    axes[1].spines[["top", "right"]].set_visible(False)
+    axes[1].legend(fontsize=7)
+
+    plt.tight_layout()
+    plt.savefig(outfile, dpi=200, bbox_inches="tight")
+    print(f"Saved: {outfile}")
 
 
 def main():
@@ -150,7 +183,8 @@ def main():
               "wiring/orientation before trusting mechanics_run/calibrated_sweep.")
         return
     mechanics_run()
-    calibrated_sweep()
+    sweep_results, t_real, coverage_real = calibrated_sweep()
+    plot(sweep_results, t_real, coverage_real)
 
 
 if __name__ == "__main__":
