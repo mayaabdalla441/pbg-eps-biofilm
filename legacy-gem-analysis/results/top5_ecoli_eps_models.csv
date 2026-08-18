@@ -1,0 +1,6 @@
+model_id,n_matched_genes,matched_genes
+iML1515,11,"cpsG, gmr, lsrA, lsrB, lsrC, lsrD, lsrK, luxS, wcaJ, yahA, ydaM"
+iEC55989_1330,4,"cpsG, lsrC, lsrD, luxS"
+iG2583_1286,4,"cpsG, lsrC, lsrD, luxS"
+iECIAI1_1343,4,"cpsG, lsrC, lsrD, luxS"
+iECH74115_1262,4,"cpsG, lsrC, lsrD, luxS"

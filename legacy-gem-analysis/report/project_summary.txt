@@ -1,0 +1,509 @@
+STRING ANALYSIS - E. COLI GEM PROJECT SUMMARY
+==============================================
+Last updated: July 15, 2026
+Project: /string-analysis-ecoliGEM
+Main notebook: eps_analysis.ipynb (13 cells)
+Model: iML1515 (E. coli K-12, 1515 genes, ~2712 reactions)
+
+
+WHAT WE ARE DOING
+-----------------
+This project uses genome-scale metabolic modeling (GEM) to build a simulated
+EPS-producing E. coli cell. The goal is to predict EPS production rates under
+different nutrient and regulatory conditions, giving quantitative estimates of
+EPS output as a purely computational (dry-lab) deliverable.
+
+A GEM model is a mathematical steady-state mass balance of all reactions in the
+cell. Flux Balance Analysis (FBA) finds the reaction rates (fluxes) that satisfy
+all balances while maximizing a chosen objective (biomass or EPS). Outputs are in
+mmol/gDW/h, which convert to per-cell amounts using E. coli dry weight ~280 fg/cell.
+
+Three complete EPS biosynthetic routes were added to iML1515 so the model can
+measure EPS secretion as a real, quantifiable output across three EPS types:
+  1. Cellulose (bcsA pathway)
+  2. Colanic acid (Wca pathway)
+  3. PNAG - poly-beta-1,6-GlcNAc (pgaC/pgaB pathway)
+
+
+THE STRING GENE LIST (20 genes of interest)
+-------------------------------------------
+These genes were identified from STRING network analysis as EPS/biofilm-relevant.
+They fall into three functional categories for FBA modeling purposes:
+
+CATEGORY 1 - Metabolic enzymes (can be directly in the reaction network):
+  Gene    Model reaction  Reaction stoichiometry
+  ------  --------------  ---------------------------------------------------
+  wcaJ    UDPGPT          udcpp_c + udpg_c <=> udcpgl_c + ump_c
+                          (first committed step of Wca/colanic acid pathway)
+  cpsG    PMANM           man1p_c <=> man6p_c
+                          (mannose-phosphate isomerase, feeds EPS precursors)
+  ydaM    DGUNC           2 gtp_c --> cdigmp_c + 2 ppi_c
+                          (diguanylate cyclase -- MAKES c-di-GMP)
+  yahA    CDGUNPD         cdigmp_c + h2o_c --> 5pg35pg_c + h_c
+                          (phosphodiesterase -- DEGRADES c-di-GMP)
+  gmr     LDGUNPD         5pg35pg_c + h2o_c --> 2 gmp_c + h_c  [also CDGUNPD]
+                          (phosphodiesterase -- DEGRADES c-di-GMP)
+  luxS    RHCCE           rhcys_c --> dhptd_c + hcys__L_c
+                          (quorum sensing AI-2 precursor -- not wired to EPS)
+  lsrA-D  AI2abcpp        atp_c + h2o_c + mththf_p --> adp_c + mththf_c + pi_c
+                          (AI-2 ABC importer -- not directly wired to EPS)
+  lsrK    AI2K            atp_c + dhptd_c --> adp_c + dhptdp_c + h_c
+                          (AI-2 kinase -- not directly wired to EPS)
+  bcsA    NOT IN MODEL    cellulose synthase -- added manually as CELSYNTH
+  pgaB    NOT IN MODEL    PNAG deacetylase -- not added (pgaC/PUACGAMS used instead)
+
+CATEGORY 2 - Transcription factors / regulators (CANNOT be in FBA):
+  rpoS, csrA, lsrR, csgA
+  FBA has no gene expression layer. These proteins control which genes are
+  expressed but have no metabolic flux. Their effects are captured indirectly
+  through the nutrient conditions and reaction knockouts we simulate.
+
+CATEGORY 3 - Absent from model, redundant, or different pathway:
+  dgcE    NOT IN MODEL    diguanylate cyclase -- same function as ydaM (DGUNC),
+                          which IS in the model, so dgcE is covered functionally
+  bcsZ    NOT IN MODEL    cellulase (DEGRADES cellulose) -- not added
+  pgaB    NOT IN MODEL    deacetylates PNAG after synthesis -- not added
+
+
+WHY THE ORIGINAL MODEL COULDN'T MAKE EPS
+-----------------------------------------
+Three problems prevented EPS production in the base iML1515 model:
+
+1. Dead-end metabolite: UDPGPT (wcaJ) makes udcpgl_c, but nothing downstream
+   consumes it. The Wca polymerization steps are absent from iML1515. FBA forces
+   any reaction whose product has no drain to carry zero flux.
+
+2. No export route: FBA can only measure a compound as "produced" if there is an
+   exchange reaction (EX_xxx_e) representing secretion into the medium. Without
+   an exchange reaction, no carbon can leave as EPS regardless of upstream flux.
+
+3. c-di-GMP disconnected: ydaM (DGUNC) makes c-di-GMP and yahA/gmr degrade it,
+   but nothing in the original model required c-di-GMP to make EPS. So the
+   signaling pathway cycled without effect on EPS production.
+
+Early work used a sink on udcpgl_c (SK_udcpgl_c) as a rough proxy -- just
+draining the precursor to allow upstream reactions to run. This gave approximate
+flux estimates but was not biologically meaningful as an EPS output.
+
+
+THE THREE EPS PATHWAYS ADDED
+------------------------------
+
+=== PATHWAY 1: CELLULOSE (bcsA) ===
+
+Biology:
+  bcsA encodes cellulose synthase, which polymerizes UDP-glucose into beta-1,4-
+  glucose chains (cellulose). bcsA binds c-di-GMP allosterically -- high c-di-GMP
+  activates the enzyme. This is the major matrix polysaccharide in E. coli biofilms.
+
+Stoichiometry source:
+  The core reaction is the well-characterized bcsA enzymatic step:
+  UDP-glucose --> [glucose unit in chain] + UDP
+  Per monomer: one UDP-glucose consumed, one UDP released.
+  The c-di-GMP requirement is modeled as a small stoichiometric cofactor
+  (coefficient 0.001 per monomer) rather than a true allosteric activator,
+  because FBA cannot represent allosteric regulation directly. This forces DGUNC
+  (ydaM) to supply c-di-GMP for the reaction to carry flux.
+
+Reactions added (all new to iML1515):
+  CELSYNTH:     udpg_c + 0.001 cdigmp_c  -->  cellulose_c + udp_c
+  CELLULOSEt:   cellulose_c  -->  cellulose_e
+  EX_cellulose_e: cellulose_e  -->  [secreted]
+
+New metabolites added:
+  cellulose_c   formula C6H10O5  (cytoplasm, one anhydroglucose monomer unit)
+  cellulose_e   formula C6H10O5  (extracellular)
+
+How the EPS phenotype is simulated:
+  Knocking out CDGUNPD + LDGUNPD (yahA and gmr reactions set to zero flux)
+  blocks c-di-GMP degradation. All c-di-GMP made by DGUNC (ydaM) must then
+  flow through CELSYNTH -- the only remaining drain. This mimics the high-c-di-GMP
+  switch that triggers biofilm formation in E. coli.
+
+=== PATHWAY 2: COLANIC ACID (Wca pathway) ===
+
+Biology:
+  Colanic acid is the primary EPS of E. coli K-12 under stress. It is a
+  heteropolysaccharide with a repeating unit of approximately:
+  [Glc - Gal - GlcA - Fuc - Fuc] with a pyruvate modification on the outer fucose.
+  The Wca operon (wcaA through wcaL) assembles this on an undecaprenyl-phosphate
+  lipid carrier in the inner membrane, then exports it.
+
+Stoichiometry source:
+  The colanic acid repeating unit composition is well-established in the literature
+  (Stevenson et al. 1996, J Bacteriol): 1 Glc, 1 Gal, 1 GlcA, 2 Fuc, 1 pyruvate.
+  In vivo, the Wca machinery assembles this on the undecaprenyl-PP lipid carrier.
+  We model the full assembly as one lumped polymerization reaction (COLASYNTH)
+  consuming the activated sugar nucleotides and PEP (pyruvate source):
+    - udcpgl_c: the wcaJ/UDPGPT product -- glucose starter on undecaprenyl carrier
+    - udpgal_c: galactose unit (from UDP-galactose, already in iML1515)
+    - udpglcur_c: glucuronate unit (from UDP-glucuronate, already in iML1515)
+    - gdpfuc_c: 2x fucose units (from GDP-fucose, already in iML1515)
+    - pep_c: phosphoenolpyruvate (source of pyruvate modification, already in model)
+  Products:
+    - colacid_c: colanic acid repeating unit (approximate formula C33H52O27)
+    - udcpp_c: undecaprenyl-phosphate recycled back to wcaJ
+    - 2 udp_c: released when Gal and GlcA are added
+    - 2 gdp_c: released when the two Fuc are added
+    - pi_c: phosphate released from PEP during pyruvylation
+
+  Why use udcpgl_c as the starter:
+    wcaJ (UDPGPT) was a dead-end in the original model. Using its product as the
+    glucose starter in COLASYNTH "unblocks" that dead-end -- the wcaJ reaction
+    now serves a productive purpose in the model.
+
+  Why lump all Wca steps into one reaction:
+    The full Wca pathway has ~10 enzymatic steps (wcaB, wcaC, wcaD, wcaE, wcaF,
+    wcaI, wcaJ, wcaK, wcaL, etc.). Most of these genes and their intermediate
+    metabolites are not in iML1515. Lumping is standard practice in GEM expansion
+    when the intermediate steps are not individually constrained.
+
+Reactions added (all new to iML1515):
+  COLASYNTH:    udcpgl_c + udpgal_c + udpglcur_c + 2 gdpfuc_c + pep_c
+                    --> colacid_c + udcpp_c + 2 udp_c + 2 gdp_c + pi_c
+  COLAIDt:      colacid_c  -->  colacid_e
+  EX_colacid_e: colacid_e  -->  [secreted]
+
+New metabolites added:
+  colacid_c   formula C33H52O27  (cytoplasm, one repeating unit)
+  colacid_e   formula C33H52O27  (extracellular)
+
+Note on the formula C33H52O27:
+  Approximate, calculated from the monomer composition:
+  1 Glc (C6H10O5) + 1 Gal (C6H10O5) + 1 GlcA (C6H8O6) + 2 Fuc (C12H20O8)
+  + pyruvate residue (C3H4O3) = C33H52O27. The exact formula does not affect
+  FBA flux results; it matters only for elemental balance checks.
+
+=== PATHWAY 3: PNAG (pgaC / pgaB) ===
+
+Biology:
+  PNAG (poly-beta-1,6-N-acetylglucosamine) is a surface-associated polysaccharide
+  that promotes cell-cell adhesion in early biofilm. pgaC polymerizes UDP-GlcNAc
+  into the PNAG chain. pgaB partially deacetylates it to increase adhesion.
+  PNAG is regulated by c-di-GMP at the post-transcriptional level (IcaA-like
+  mechanism). Importantly, its monomer (UDP-GlcNAc) contains nitrogen -- this
+  means PNAG synthesis competes for nitrogen under N-limitation.
+
+Stoichiometry source:
+  The pgaC reaction is already partially represented in iML1515 as PUACGAMS:
+    PUACGAMS: puacgam_c + udp_c <=> uacgam_c  (reversible)
+  Running this in reverse gives synthesis:
+    uacgam_c  -->  puacgam_c + udp_c
+  UDP-GlcNAc (uacgam_c) is consumed and PNAG (puacgam_c) is produced.
+  The periplasmic transport was also already present:
+    PUACGAMtr: puacgam_c --> puacgam_p  (already in iML1515)
+
+  What was missing: only the extracellular export step.
+
+Reactions added (only 2 new reactions needed):
+  PUACGAMex:    puacgam_p  -->  puacgam_e
+  EX_puacgam_e: puacgam_e  -->  [secreted]
+
+Reactions already in iML1515 used by this pathway:
+  PUACGAMS (reverse): uacgam_c --> puacgam_c + udp_c  (pgaC -- synthesis)
+  PUACGAMtr:          puacgam_c --> puacgam_p          (periplasm transport)
+
+New metabolites added:
+  puacgam_e   (extracellular PNAG)
+
+
+MODELING APPROACH AND WORKFLOW
+--------------------------------
+All analyses use a two-stage optimization:
+  Stage 1: Maximize biomass (parFBA) -- record max growth rate mu_max
+  Stage 2: Constrain biomass >= 90% x mu_max, then maximize EPS exchange flux
+
+The 90% constraint keeps the cell growing while allowing EPS production. This
+reflects the biology: we want a growing cell that also makes EPS, not one that
+has arrested growth to maximize EPS.
+
+For each EPS pathway, the optimization objective is set to that pathway's
+exchange reaction (EX_cellulose_e, EX_colacid_e, EX_puacgam_e). Results are
+reported per-pathway rather than as a combined objective, because combining them
+would require arbitrary weighting.
+
+
+SIX CONDITIONS TESTED
+----------------------
+Originally defined for M9 minimal medium as the base. Values are upper bound
+constraints on exchange reaction uptake rates (mmol/gDW/h):
+
+  1. baseline:       standard M9, glucose 10 mM, unlimited O2/N/P/S
+  2. high_glucose:   glucose 20 mM (double carbon)
+  3. low_oxygen:     O2 limited to 5 mM (semi-anaerobic)
+  4. N_limited:      ammonium limited to 2 mM (nitrogen stress)
+  5. EPS_phenotype:  CDGUNPD + LDGUNPD knocked out (high c-di-GMP state)
+  6. combined_EPS:   high glucose + N-limited + c-di-GMP knockouts
+
+The "combined_EPS" condition mimics the natural biofilm trigger in E. coli:
+carbon excess (high glucose) + nitrogen stress (cannot use carbon for protein
+growth) + c-di-GMP switch on (biofilm mode activated).
+
+As of Phase 7, this same six-condition set was also re-run with LB as the base
+medium (the collaborator running these simulations works exclusively in LB).
+Two conditions needed LB-specific redefinitions rather than a direct port --
+see "PHASE 7" below and eps_media_comparison.ipynb for full rationale:
+  - high_glucose (LB):  LB + EX_glc__D_e = 20.0 (glucose-supplemented LB,
+    since LB has no baseline glucose to double)
+  - N_limited (LB):     all 20 amino-acid exchange bounds scaled to 20% of
+    their LB baseline value (since EX_nh4_e is not part of lb_medium -- LB's
+    real nitrogen source is the amino acids, not free ammonium)
+
+
+RESULTS SUMMARY (all three pathways, 90% growth constraint)
+------------------------------------------------------------
+  Condition        Max growth  Cellulose  Colanic acid  PNAG   Total EPS
+                   (h-1)       (mmol/gDW/h)                    (mmol/gDW/h)
+  -------------    ----------  ---------  ------------  -----  -----------
+  baseline         0.877       0.902      0.168         0.676  1.746
+  high_glucose     1.780       1.831      0.340         1.371  3.542
+  low_oxygen       0.354       0.947      0.173         0.625  1.745
+  N_limited        0.185       7.247      1.347         0.200  8.794
+  EPS_phenotype    0.877       0.902      0.168         0.676  1.746
+  combined_EPS     0.185      16.439      3.057         0.200  19.695  <-- MAX
+
+Per-cell estimates (combined_EPS condition):
+  Cellulose:    ~1,191,000 fg/cell/h  (~1.19 ng/cell/h)
+  Colanic acid: ~   86,000 fg/cell/h  (~0.09 ng/cell/h)
+  PNAG:         ~   12,000 fg/cell/h  (~0.01 ng/cell/h)
+  TOTAL:        ~1,289,000 fg/cell/h  (~1.29 ng/cell/h)
+
+Conversion formula:
+  EPS (fg/cell/h) = flux (mmol/gDW/h) x 2.8e-13 (g/cell) x MW (g/mol) x 1e15
+  MW used: cellulose = 162.14, colanic acid = ~588, PNAG = 221.21
+
+
+KEY BIOLOGICAL INSIGHTS FROM THE MODEL
+---------------------------------------
+1. Cellulose dominates: accounts for ~83% of total EPS in the combined_EPS
+   condition.
+
+2. N-limitation is the strongest single driver: N_limited alone gives 8.79
+   mmol/gDW/h total EPS vs 1.75 at baseline. When nitrogen is scarce, excess
+   carbon cannot be used for protein/growth and is redirected to EPS.
+
+3. c-di-GMP signal alone is insufficient: EPS_phenotype (only yahA/gmr knockouts,
+   normal nutrients) gives identical EPS to baseline. The regulatory switch being
+   "on" does not help without a carbon surplus to redirect. The combined condition
+   is required for maximum EPS.
+
+4. PNAG is suppressed by N-limitation (emergent result): PNAG dropped from
+   0.676 at baseline to 0.200 under N-limitation and combined_EPS. This was not
+   programmed explicitly -- it emerged because UDP-GlcNAc (PNAG monomer) contains
+   nitrogen (N-acetyl group), so the model correctly restricts it when NH4+ is
+   scarce. This is biologically consistent with literature.
+
+5. Growth-EPS trade-off is real and unavoidable: all three pathways compete with
+   biomass for the same precursor pool (UDP-glucose for cellulose and colanic acid,
+   UDP-GlcNAc for PNAG). The production envelope shows this clearly.
+
+
+M9 vs LB -- SIX-CONDITION COMPARISON (Phase 7)
+------------------------------------------------
+Full six-condition matrix (all three pathways, 90% growth constraint) re-run with
+LB as the base medium, for direct comparison to the M9 table above:
+
+  Condition        M9 growth  LB growth  M9 Total EPS  LB Total EPS  LB/M9 fold (EPS)
+  -------------    ---------  ---------  ------------  ------------  ----------------
+  baseline           0.877      1.953        1.746         4.974           2.85
+  high_glucose        1.780      3.065        3.543        10.646           3.00
+  low_oxygen          0.354      0.769        1.745         2.049           1.17
+  N_limited           0.185      1.299        8.794         2.617           0.30
+  EPS_phenotype       0.877      1.953        1.746         4.974           2.85
+  combined_EPS        0.185      2.160       19.696         8.851           0.45
+
+Key finding -- LB nitrogen-limitation is much weaker than M9 nitrogen-limitation:
+  M9 N_limited cuts growth 0.877 -> 0.185 h-1 (79% cut) because glucose (the sole
+  carbon source) stays unrestricted while NH4+ alone is cut -- creating a sharp
+  carbon-excess/nitrogen-scarce imbalance that forces carbon overflow into EPS.
+  LB N_limited only cuts growth 1.953 -> 1.299 h-1 (33% cut) because scaling all
+  20 amino acids down uniformly restricts carbon and nitrogen together (amino
+  acids are dual C+N sources) -- it never creates that same imbalance, so LB
+  Total EPS actually goes DOWN under this N-limited definition (4.97 -> 2.62),
+  not up. combined_EPS partially recovers this by adding a glucose supplement on
+  top of the scaled amino acids (LB Total EPS 8.85), but still falls well short
+  of the M9 combined_EPS number (19.70).
+
+Follow-up design question (not yet resolved): if LB is the fixed experimental
+medium going forward, a stronger EPS-inducing "N-limited" LB condition likely
+needs a different lever than uniform amino-acid scaling -- e.g. keeping glucose
+fixed and high while cutting only nitrogen-rich amino acids (Arg, Gln, Asn,
+Lys), rather than cutting all 20 uniformly.
+
+Other notes:
+  - RESOLVED (previously flagged as an inconsistency): eps_media_comparison.ipynb
+    used to define its own explicit m9_medium dict, manually capping O2/NH4/Pi/SO4
+    at 20/10/10/10 mmol/gDW/h -- values not tied to any cited source and stricter
+    than the standard GEM/iML1515 convention for "M9 minimal medium" (only the
+    carbon source uptake-limited; O2/N/P/S left unconstrained, since in a real M9
+    culture those salts are provided in molar excess and never actually become
+    growth-limiting). That standard convention is exactly what the model's own
+    default SBML exchange bounds represent, and is what eps_analysis.ipynb v3 and
+    the canonical table above already use (mu_max = 0.877 h-1). Decision: adopt
+    the SBML-default convention as the single M9 baseline everywhere. The old dict
+    is renamed m9_medium_restricted and kept only for reference; it is no longer
+    used as an M9 baseline anywhere in the project.
+  - Correction from this fix: the M9-vs-LB single-condition comparison (the
+    original section of eps_media_comparison.ipynb, before Phase 7) previously
+    reported colanic acid as ~1.8x higher in LB than M9 -- that number was based
+    on the retired m9_medium_restricted baseline. Rerun with the SBML-default M9
+    baseline, the correct fold-change is ~2.84x (M9: 0.168, LB: 0.476 mmol/gDW/h),
+    consistent with the ~2.85x Total-EPS fold-change for "baseline" in the Phase 7
+    table above. Any prior mention of "~1.8x more colanic acid" (including in
+    .claude/agents/eps-fba.md) is now stale and should be treated as superseded
+    by this ~2.84x figure.
+  - Also produced (single-condition, LB only, no six-condition matrix): each of
+    the three pathways individually pFBA-maximized under plain LB baseline --
+    Cellulose 2.184, Colanic acid 0.476, PNAG 2.314 mmol/gDW/h
+    (eps_lb_three_pathways.csv).
+
+
+WHAT HAS BEEN DONE (CHRONOLOGICAL)
+------------------------------------
+Phase 1 -- Model selection (model_investigation.ipynb):
+  - Screened all 58 E. coli GEMs in the BiGG database for EPS gene content
+  - iML1515 matched 11/20 STRING genes; next-best models matched only 4
+  - Output: top5_ecoli_eps_models.csv, ecoli_eps_gene_summary.csv
+
+Phase 2 -- Gene mapping (eps_analysis.ipynb, cell 3):
+  - Built gene_map: maps all 20 STRING genes to their iML1515 reactions
+  - Classified genes by role (biosynthetic enzyme, signaling, regulatory)
+
+Phase 3 -- Proxy analysis (superseded, removed from notebook):
+  - Added sink on udcpgl_c (SK_udcpgl_c) as rough EPS proxy
+  - Ran pFBA under 6 conditions tracking UDPGPT flux
+  - Computed weighted "EPS score" heuristic
+
+Phase 4 -- First real EPS pathway: cellulose bcsA (superseded, removed):
+  - Added CELSYNTH, CELLULOSEt, EX_cellulose_e without c-di-GMP wiring
+  - Ran production envelopes for all 6 conditions
+
+Phase 5 -- EPS Model v2: cellulose with c-di-GMP (eps_analysis.ipynb, cells 5-8):
+  - Rebuilt cellulose pathway with c-di-GMP as required cofactor in CELSYNTH
+  - Ran 6-condition analysis + per-cell conversion
+  - Generated eps_cellulose_condition_bars.png, eps_cellulose_production_envelope.png
+  - Output: eps_cellulose_condition_analysis.csv
+
+Phase 6 -- EPS Model v3: all three pathways (eps_analysis.ipynb, cells 10-12):
+  - Added COLASYNTH (colanic acid/Wca pathway)
+  - Added PUACGAMex + EX_puacgam_e (PNAG, building on existing model reactions)
+  - Generated eps_pathway_diagram.png, eps_pathway_comparison.png,
+    eps_stacked_contributions.png
+  - Output: eps_all_pathways_analysis.csv
+
+Phase 7 -- LB medium adoption + six-condition matrix in LB (eps_media_comparison.ipynb):
+  - Built M9 vs LB baseline comparison (single condition, colanic acid objective)
+  - Built LB-only per-pathway pFBA baseline (all 3 pathways individually maximized
+    under plain LB) -- output: eps_lb_three_pathways.csv
+  - Re-defined and ran the full six-condition matrix (all 3 pathways) with LB as
+    the base medium, redefining high_glucose and N_limited for LB's amino-acid-based
+    nutrient structure (see "M9 vs LB -- SIX-CONDITION COMPARISON" above)
+  - Output: eps_v4_m9_six_conditions.csv, eps_v4_lb_six_conditions.csv,
+    eps_m9_vs_lb_six_conditions_comparison.csv, eps_m9_vs_lb_six_conditions_bars.png
+  - Key finding: LB's amino-acid-scaling N_limited condition is much weaker than
+    M9's NH4-restriction N_limited condition -- flagged as an open design question
+
+
+NEXT STEPS
+----------
+1. Design a stronger LB N-limitation condition:
+   - Uniform 20% amino-acid scaling (current Phase 7 approach) does not reproduce
+     the carbon-excess/nitrogen-scarce imbalance that drives EPS overflow in M9
+   - Try: keep glucose fixed/high while selectively cutting nitrogen-rich amino
+     acids (Arg, Gln, Asn, Lys) rather than scaling all 20 uniformly
+
+2. Gene knockout screen:
+   - Systematically knock out each EPS-related gene (one at a time) and measure
+     change in EPS flux -- identifies rate-limiting enzymatic steps
+   - Key targets: test effect of wcaJ KO on colanic acid, bcsA KO on cellulose
+
+3. Production envelopes for Wca and PNAG:
+   - Currently only cellulose has production envelope curves
+   - Add colanic acid and PNAG envelopes to compare growth-EPS trade-offs
+
+4. Refine colanic acid stoichiometry:
+   - The current COLASYNTH is a lumped single-step reaction
+   - If more quantitative predictions are needed, add intermediate Wca steps
+     individually with literature-derived stoichiometry
+
+5. Model the pgaB deacetylation step:
+   - pgaB deacetylates PNAG to increase biofilm adhesion
+   - Could add a PNAG deacetylation reaction downstream of PUACGAMS
+
+6. Flux variability analysis (FVA):
+   - Run FVA on all three EPS exchange reactions to determine the range of
+     feasible EPS fluxes at each growth rate
+   - Tighter ranges = more reliable predictions
+
+7. Known open cleanup item: eps_analysis.ipynb's v2 cellulose section still writes
+   its CSV output as eps_v2_condition_analysis.csv, but that file was deleted and
+   this document had referred to it (pre-Phase-7) as eps_cellulose_condition_analysis.csv,
+   a name the code never actually wrote. Fix the filename in the notebook code (or
+   this doc) and rerun to regenerate a file that actually exists on disk.
+
+
+KEY FILES
+---------
+Notebooks:
+  model_investigation.ipynb    BiGG model screening (58 models, 20 genes)
+  eps_analysis.ipynb           full EPS analysis pipeline, 13 cells:
+                                 cell 3:    STRING gene map
+                                 cells 5-8: cellulose + c-di-GMP (v2)
+                                 cells 10-12: all three pathways (v3)
+  eps_media_comparison.ipynb   M9 vs LB medium comparison; LB-only per-pathway
+                                baseline; Phase 7 six-condition matrix in LB vs M9
+
+CSVs:
+  top5_ecoli_eps_models.csv              top 5 models by EPS gene count
+  ecoli_eps_gene_summary.csv             all 58 models ranked
+  eps_all_pathways_analysis.csv          MAIN RESULTS (M9): all conditions x all pathways
+  eps_lb_three_pathways.csv              LB baseline, each pathway individually maximized
+  eps_v4_m9_six_conditions.csv           Phase 7: M9 six-condition matrix (all 3 pathways)
+  eps_v4_lb_six_conditions.csv           Phase 7: LB six-condition matrix (all 3 pathways)
+  eps_m9_vs_lb_six_conditions_comparison.csv   Phase 7: M9 vs LB side-by-side + fold-changes
+  NOTE: eps_cellulose_condition_analysis.csv does NOT currently exist on disk --
+  see "Known open cleanup item" under NEXT STEPS.
+
+Figures:
+  eps_pathway_diagram.png               diagram of all 3 pathways added to iML1515
+  eps_pathway_comparison.png            before/after: no EPS -> each pathway -> all three
+  eps_stacked_contributions.png         stacked bars: pathway contributions per condition
+  eps_cellulose_condition_bars.png      cellulose condition bars (v2)
+  eps_cellulose_production_envelope.png cellulose production envelope (v2)
+  eps_m9_vs_lb_six_conditions_bars.png  Phase 7: grouped bar chart, Total EPS M9 vs LB
+
+Reports (report/ folder):
+  project_summary.txt          this file
+  eps_all_pathways_report.html MAIN REPORT: all three pathways, all figures
+
+Model source:
+  iML1515.xml   iML1515 SBML file (project root, not committed to git)
+
+
+MODELING NOTES AND CAVEATS
+---------------------------
+- All FBA results are UPPER BOUND predictions under the given nutrient constraints.
+  Real cells will produce less due to regulatory overhead, maintenance costs, and
+  post-transcriptional effects not captured in FBA.
+
+- The c-di-GMP cofactor stoichiometry in CELSYNTH (0.001 per monomer) is a
+  modeling approximation. In reality, c-di-GMP activates bcsA allosterically
+  and is not consumed. The small stoichiometric coupling is used to force DGUNC
+  (ydaM) to be active when cellulose is being made.
+
+- COLASYNTH is a lumped reaction collapsing ~10 Wca enzymatic steps into one.
+  This is standard for GEM pathway additions where intermediates are unknown.
+  The stoichiometry is based on the known monomer composition of colanic acid
+  (Stevenson et al. 1996) not on kinetic parameters.
+
+- The PNAG pathway uses PUACGAMS in reverse for synthesis. The equilibrium of
+  this reaction in vivo favors the direction written in the model (degradation).
+  In the GEM, running in reverse is feasible as long as the thermodynamic
+  constraint is not enforced -- standard FBA does not enforce thermodynamics.
+
+- parFBA (parsimonious FBA) is used instead of standard FBA to avoid biologically
+  unrealistic high-flux solutions. It minimizes total flux while achieving the
+  optimal objective value.
+
+- The iML1515 model file must be present at iML1515.xml in the project root
+  to run any notebook cells. It is not committed to the repository (gitignored).
