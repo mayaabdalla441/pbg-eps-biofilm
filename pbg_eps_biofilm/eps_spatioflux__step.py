@@ -50,6 +50,20 @@ class EpsFBAStep(DynamicFBA):
         # Defaults (floor=1.0, scale=1e9) are a no-op, reproducing prior validated behavior.
         "diffusion_limitation_scale": {"_type": "float", "_default": 1e9},
         "diffusion_limitation_floor": {"_type": "float", "_default": 1.0},
+        # Volume-anchoring fix (decline_investigation_summary memory, 2026-08-17): the static/
+        # depleting branch's uptake cap (`remaining / (biomass * interval)`) mixes AA
+        # concentration (mM = mmol/L) with total biomass (gDW) with NO explicit shared reference
+        # volume -- dimensionally this only makes sense if the "pool" is implicitly 1 L, which
+        # was never stated or chosen deliberately; it's a units gap that predates this
+        # investigation (present since the original static-phase model). Root-caused via the
+        # depth-scaffold negative result: because of this gap, real depletion stays negligible
+        # regardless of biomass scale, so production never plateaus and no shedding rate can ever
+        # catch up to it. Default 1.0 (L) is a DELIBERATE no-op -- it exactly reproduces the prior
+        # (buggy-but-already-validated/cited) formula bit-for-bit, so PR #1's static-phase
+        # headline numbers and every other existing validated run are UNCHANGED unless a caller
+        # opts in explicitly. Set to a real physical volume (e.g. Nona's ~3uL chamber = 3e-6 L,
+        # or chamber_volume/num_layers per depth layer) to anchor uptake/depletion to reality.
+        "substrate_reference_volume_L": {"_type": "float", "_default": 1.0},
     }
 
     def initialize(self, config):
@@ -101,7 +115,12 @@ class EpsFBAStep(DynamicFBA):
                     cap = max_rate * diffusion_factor
                 else:
                     remaining = substrates.get(aa_id, 0.0)
-                    cap = min(max_rate, remaining / (biomass * interval)) if biomass > 0 else max_rate
+                    # remaining (mM=mmol/L) * volume_L -> total mmol available in the real pool;
+                    # dividing THAT by (biomass * interval) gives mmol/gDW/h, matching max_rate's
+                    # units. volume_L=1.0 (default) reproduces the old formula exactly.
+                    volume_l = self.config["substrate_reference_volume_L"]
+                    remaining_total_mmol = remaining * volume_l
+                    cap = min(max_rate, remaining_total_mmol / (biomass * interval)) if biomass > 0 else max_rate
                     cap = max(cap, 0.0)
                 self.model.reactions.get_by_id(aa_id).lower_bound = -cap
 
@@ -182,7 +201,13 @@ class EpsFBAStep(DynamicFBA):
             # values even though physically nothing is running out.
             substrate_deltas = {aa_id: 0.0 for aa_id in self.config['aa_bounds']}
         else:
-            substrate_deltas = {aa_id: flux * biomass * interval for aa_id, flux in aa_flux.items()}
+            # Inverse of the cap-side fix above: flux*biomass*interval is a total mmol change;
+            # dividing by volume_L converts it back to a concentration (mM) delta on the
+            # `substrates` store, consistent with what the cap now assumes. volume_L=1.0
+            # (default) reproduces the old formula exactly.
+            volume_l = self.config["substrate_reference_volume_L"]
+            substrate_deltas = {aa_id: (flux * biomass * interval) / volume_l
+                                 for aa_id, flux in aa_flux.items()}
 
         return{
           "substrates": substrate_deltas,

@@ -35,6 +35,9 @@ from pbg_eps_biofilm.composites.eps_biofilm_flow_scaffold import (
 
 NUM_LAYERS_DEFAULT = 3
 CHAMBER_HEIGHT_CM = 150e-4  # 150um, Nona's real chamber height
+CHAMBER_VOLUME_CM3 = 0.2 * 1.0 * 0.015  # 2mm x 10mm x 150um = 0.003 cm^3 (matches
+                                          # run_penetration_depth_check.py's CHAMBER_VOLUME_CM3)
+CHAMBER_VOLUME_L = CHAMBER_VOLUME_CM3 * 1e-3  # cm^3 -> L (1 cm^3 = 1 mL = 1e-3 L)
 D_AQ_CM2_PER_S = 1e-5  # representative small-solute aqueous diffusivity
 D_AQ_CM2_PER_H = D_AQ_CM2_PER_S * 3600.0
 STEWART_ORGANIC_RATIO = 0.25  # Stewart 2003, D_e/D_aq for organic solutes -- already an
@@ -50,7 +53,8 @@ EPS_REACTION_ID = "EX_eps_e"
 
 
 def _eps_fba_layer(i, *, dt, model_file, growth_floor_fraction, growth_rate_cap_fraction,
-                    layer_biomass_carrying_capacity, eps_shed_rate, aa_bounds):
+                    layer_biomass_carrying_capacity, eps_shed_rate, aa_bounds,
+                    layer_volume_l):
     return {
         "_type": "process",
         "address": "local:EpsFBAStep",
@@ -87,6 +91,13 @@ def _eps_fba_layer(i, *, dt, model_file, growth_floor_fraction, growth_rate_cap_
             # diffusion_limitation_scale/floor stay at their no-op defaults -- real
             # depth-resolved diffusion limitation is now handled by DepthDiffusionStep
             # directly; using both would double-count the same physics two ways.
+            # Volume-anchoring fix (see eps_spatioflux__step.py's config_schema comment,
+            # decline_investigation_summary memory 2026-08-17): each layer's own real
+            # physical volume (chamber_volume / num_layers), NOT the 1.0L no-op default.
+            # This is the actual root-cause fix -- without it, real depletion stayed
+            # negligible regardless of biomass scale, production never plateaued, and no
+            # shedding rate could ever catch up to it (confirmed via the first sweep).
+            "substrate_reference_volume_L": layer_volume_l,
         },
         "inputs": {
             "substrates": {aa_id: ["fields", "substrates", aa_id, str(i)] for aa_id in aa_bounds},
@@ -136,6 +147,7 @@ def eps_biofilm_depth_scaffold(core=None, *, model_file="eps_ecoli_model_lb_epsp
     layer_biomass0 = initial_biomass / num_layers
     layer_bmax = biomass_carrying_capacity / num_layers
     depth_per_layer_cm = CHAMBER_HEIGHT_CM / num_layers
+    layer_volume_l = CHAMBER_VOLUME_L / num_layers
 
     state = {}
     for i in range(num_layers):
@@ -148,6 +160,7 @@ def eps_biofilm_depth_scaffold(core=None, *, model_file="eps_ecoli_model_lb_epsp
             layer_biomass_carrying_capacity=layer_bmax,
             eps_shed_rate=shed_rate,
             aa_bounds=aa_bounds,
+            layer_volume_l=layer_volume_l,
         )
 
     state["diffusion"] = {
