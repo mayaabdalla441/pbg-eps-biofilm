@@ -1,7 +1,7 @@
 # eps-biofilm-dfba-static/investigation.yaml — schema v2
 schema_version: 2
 name: eps-biofilm-dfba-static
-title: "Static-Phase EPS dFBA — Framework Cross-Validation"
+title: "EPS dFBA — Static-Phase Cross-Validation, Real-Data Calibration, and the Late-Decline Investigation"
 created: '2026-08-03'
 status: running
 
@@ -131,6 +131,20 @@ lead: |
   process-bigraph-based libraries -- spatio-flux's DynamicFBA and cdFBA's dFBA -- to
   cross-validate the port before building on it further.
 
+  UPDATE 2026-08-17/18: the investigation grew beyond framework cross-validation into
+  two further studies. flow-real-calibration extends the model to Nona's real two-phase
+  chamber protocol and, for the first time, anchors growth rate/timing/B0/B_max to her
+  real 8-80h imaging data instead of placeholders -- then tests whether EPS shedding +
+  a diffusion throttle can reproduce the real t=72-80h EPS-coverage decline her data
+  shows (negative). depth-decline-test follows up with a depth-resolved spatial model
+  (surface erosion vs. protected interior) built without waiting on viva-biofilm's
+  stubbed Phase B, finds and fixes a real substrate-uptake units bug along the way, and
+  is still negative even after the fix -- now for a mechanistically clear reason (see
+  that study's findings). The open question has shifted from "is our model missing a
+  mechanism" to "is real triggered dispersal biology needed" -- a concrete ask is now
+  sitting with the wet-lab collaborator (see flow-real-calibration and
+  depth-decline-test's studies, and notes/eps-findings-for-nona.md).
+
 executive:
   what_is_this: >-
     Two independent process-bigraph implementations of the same two-stage
@@ -156,6 +170,13 @@ executive:
     accuracy -- the 90% growth-floor assumption, the hard-cap (non-kinetic)
     depletion mechanism, and the 1/3-each EPS[e] mass split are all still
     unvalidated against real biological data (see decisions_needed).
+    UPDATE 2026-08-18: the port itself remains validated and is now also
+    real-data-calibrated (flow-real-calibration). Four independent negative
+    results across two follow-on studies confirm the current model class
+    (well-mixed or spatially-differentiated, passive/constant-rate removal)
+    cannot reproduce the real t=72-80h EPS-coverage decline -- an honest,
+    well-characterized open question, not a code defect. See
+    flow-real-calibration and depth-decline-test.
   decisions_needed:
     - question: "Is the 90% growth-floor assumption during EPS production biologically defensible?"
       context: >-
@@ -166,10 +187,32 @@ executive:
         was found; this remains an assumption, not a validated parameter.
     - question: "Should the flow-phase (t=3-72h) model reuse this static-phase code as-is?"
       context: >-
-        This investigation only covers the static (no-flow) phase. The flow phase
-        needs a growth/biomass carrying-capacity mechanism this code doesn't have,
-        and is still blocked on real chamber data from the wet-lab collaborator
-        (areal biomass density, which chamber surfaces support growth).
+        RESOLVED by flow-real-calibration: yes, reused via a flowing-branch
+        extension to EpsFBAStep, and real-anchored against Nona's data
+        (growth_rate_cap_fraction=0.095, initial_biomass=2.4e-7 gDW,
+        biomass_carrying_capacity=4.17e-4 gDW, all derived from her real
+        inoculation count + fitted growth curve, verified by simulation).
+    - question: >-
+        A real turnover/erosion rate for EPS matrix removal, or a read on
+        whether the real t=72-80h coverage decline looks like continuous
+        erosion under flow vs. a distinct triggered dispersal-like event.
+      context: >-
+        Four independent negative results (flow-real-calibration's global
+        shedding+throttle sweep at two scales; depth-decline-test's
+        spatially-differentiated surface-erosion sweep, both before and
+        after fixing a real substrate-uptake units bug) all confirm a
+        passive/constant-rate removal mechanism cannot reproduce the real
+        decline. The sent ask is in notes/eps-findings-for-nona.md — this is
+        now the actual blocker, not further in-silico tuning.
+    - question: >-
+        Is viva-biofilm's Phase B (diff_biofilm spatial-diffusion support,
+        currently a stub) in progress, on the roadmap, or something we should
+        build ourselves?
+      context: >-
+        Sent to the PI, response pending as of 2026-08-18. Turned out not to
+        block progress either way — depth-decline-test built its own local
+        DepthDiffusionStep instead after finding a real bug in spatio-flux's
+        own DiffusionAdvection process for non-square grids.
 
 scientific_argument:
   main_claim: >-
@@ -230,13 +273,23 @@ at_a_glance:
     role: "Reference implementation, built on spatio-flux's DynamicFBA."
   - study: cdfba-dfba-static
     role: "Independent cross-validation implementation, built on cdFBA's dFBA (per-PI direction to evaluate cdFBA as the primary framework going forward)."
+  - study: flow-real-calibration
+    role: "Extends to Nona's real two-phase protocol, anchors growth/timing/B0/B_max to real data, tests (negative) whether well-mixed shedding+throttle explains the real late-stage decline."
+  - study: depth-decline-test
+    role: "Depth-resolved spatial follow-up (surface erosion vs. protected interior); finds+fixes a real substrate-uptake units bug; still negative post-fix, but with a mechanistically complete explanation."
 
 studies:
   - spatioflux-dfba-static
   - cdfba-dfba-static
+  - flow-real-calibration
+  - depth-decline-test
 
 acceptance_criteria:
   - study: spatioflux-dfba-static
     behavior: reproduces-known-depletion-cascade-and-plateau
   - study: cdfba-dfba-static
     behavior: matches-spatioflux-implementation-exactly
+  - study: flow-real-calibration
+    behavior: matches-real-growth-timing
+  - study: depth-decline-test
+    behavior: real-depth-gradient-develops
