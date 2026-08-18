@@ -1,0 +1,269 @@
+schema_version: 4
+name: depth-decline-test
+title: "Depth-resolved spatial model — does surface erosion reproduce the real decline?"
+created: '2026-08-17'
+status: completed
+phase: Evaluate
+investigation: eps-biofilm-dfba-static
+claim: >-
+  Spatially-differentiated surface erosion (vs. a protected interior) still
+  cannot reproduce the real decline, even after fixing a real substrate-
+  uptake units bug that made per-layer depletion physically meaningful for
+  the first time — production plateaus to a reduced-but-nonzero steady rate
+  under continuous flow, which no constant-rate removal term can beat. Real
+  triggered dispersal biology is now the confirmed blocker, not model tuning.
+confidence: Accepted
+parent_studies:
+  - {study: flow-real-calibration, condition: tests-passed, relation: leads-to}
+report:
+  confidence: high
+  evidence_quality: calibrated
+  caveat: >-
+    Confirmed negative even after fixing a real substrate-uptake units bug
+    (round 2 of this study) that could plausibly have been masking a working
+    mechanism — it wasn't. The conclusion is now that a passive/constant-rate
+    removal mechanism cannot reproduce this decline under any spatial
+    structure tested, not that this specific structure/rate was wrong.
+study_card:
+  goal: >-
+    Test whether separating a flow-exposed SURFACE layer (real erosion) from
+    a protected INTERIOR (undisturbed production) — instead of one well-mixed
+    pool with a single global removal term — can reproduce the real t=72-80h
+    EPS-coverage decline that flow-real-calibration's well-mixed shedding
+    test could not.
+  mechanism: >-
+    N=3 independent EpsFBAStep instances (zero code changes to that class),
+    one per depth layer, each with its own local biomass/eps state (attached
+    matrix does not diffuse). Amino-acid concentrations diffuse between
+    layers via DepthDiffusionStep, a small local finite-difference process
+    (built after finding spatio-flux's own DiffusionAdvection has a real
+    shape-order bug for non-square grids — confirmed via a direct smoke
+    test; external/spatio-flux is a pinned submodule, deliberately not
+    patched). Top boundary (surface layer) is dirichlet-pinned at the real
+    bulk/inlet amino-acid concentration; bottom (basal layer) is neumann/
+    no-flux. Only the surface layer gets nonzero eps_shed_rate.
+  why_before_next: >-
+    flow-real-calibration's negative result and a direct penetration-depth
+    calculation (run_penetration_depth_check.py: realized-flux penetration
+    depth shrinks from ~970um at t=5h to ~35-70um at t=40-75h, well inside
+    the real 150um chamber height) both motivated testing whether real
+    spatial structure — not just a bigger well-mixed sweep — could close
+    the gap.
+  expected_result: >-
+    If differentiated removal (surface erodes, interior doesn't) is
+    sufficient on its own, the aggregate EPS mass should show a net decline
+    once the eroding surface layer's shedding outpaces its own (now
+    potentially nutrient-limited) production.
+  main_expert_question: >-
+    Given a spatially-differentiated, physically-grounded removal mechanism
+    still can't reproduce the decline, is this now confirmed as needing real
+    triggered/active dispersal biology (an enzymatic or regulatory event),
+    rather than any passive erosion-under-flow mechanism? See
+    notes/eps-findings-for-nona.md for the direct ask sent to the wet-lab
+    collaborator.
+question: >
+  Round 1: Can a depth-resolved model (surface-only erosion, protected
+  interior) reproduce the real t=72-80h EPS-coverage decline that the
+  well-mixed model cannot? Round 2 (2026-08-18): after finding EpsFBAStep's
+  substrate-uptake cap conflated AA concentration (mM) with total biomass
+  (gDW) with no explicit shared reference volume — a units ambiguity
+  predating this investigation — does fixing that (anchoring uptake to each
+  layer's real physical volume) change the answer?
+hypothesis: >
+  Round 1: differentiated removal without differentiated production should
+  be structurally sufficient on its own (a Plan-review finding, independent
+  of whether real nutrient stratification also matters) — a single
+  well-mixed pool's production and removal are forced to net out on the same
+  number, but two separate pools are not. Round 2: if real per-layer
+  depletion had been suppressed by the units bug, fixing it might let
+  production genuinely plateau (rather than merely being throttled to a
+  reduced constant) enough for shedding to win.
+lead: >
+  A direct follow-on to flow-real-calibration's negative result, built
+  without waiting on viva-biofilm's stubbed spatial-diffusion support
+  (`diff_biofilm`, "unused until Phase B" per its own source) — found
+  spatio-flux's own DiffusionAdvection process instead, discovered it has a
+  real bug, and built a small local replacement. Two full rounds: the
+  original build (still negative), then a real units-bug fix + re-test
+  (still negative, but with a cleaner, mechanistically complete explanation).
+baseline:
+  - name: baseline
+    composite: pbg_eps_biofilm.composites.eps_biofilm_depth_scaffold.eps_biofilm_depth_scaffold
+    params:
+      num_layers: 3
+      initial_biomass: 2.4e-7
+      biomass_carrying_capacity: 4.17e-4
+      growth_rate_cap_fraction: 0.095
+      substrate_reference_volume_L: "1e-6 (chamber_volume/num_layers, round 2 fix; round-1 runs used the 1.0L no-op default)"
+variants:
+  - name: surface-erosion-sweep
+    params:
+      surface_eps_shed_rate: "swept: half-life in {6h, 12h, 24h, 48h} + no-shedding control, both rounds"
+behavior_tests:
+  - name: layers-symmetric-with-no-asymmetry
+    classification: regression
+    question: "With diffusion effectively decoupled (D~1e-12) and shedding off, do all layers behave numerically identically? (catches wiring/row-orientation bugs before trusting a long run)"
+    measure:
+      kind: listener_median
+      path: layers.0.biomass
+      window: whole_run
+    pass_if:
+      op: at_least
+      low: 0.999999
+      provenance:
+        kind: theory
+        note: "Relative difference between layer 0 and layer 1 biomass/eps was 0.00e+00 (round 1) and <7e-9 (round 2) — exact/near-exact symmetry confirmed both rounds."
+    status: passed
+  - name: real-depth-gradient-develops
+    classification: primary
+    question: "Once the volume-anchoring fix is applied, does real nutrient depletion (not just a hard-zeroed flowing-branch no-op) develop, with a genuine concentration gradient between surface and basal layers?"
+    measure:
+      kind: listener_median
+      path: fields.substrates.EX_ser__L_e.0
+      window: whole_run
+    pass_if:
+      op: at_most
+      high: 6.0
+      provenance:
+        kind: exploratory
+        note: "Round 1 (bug present): AA held constant at 6.1000mM for the full 80h, zero depletion. Round 2 (fixed): AA dropped 6.1->~3.0mM with a real, if small, surface-vs-basal gradient (e.g. t=16.5h: surf=3.0314, basal=3.0389)."
+    status: passed
+  - name: surface-erosion-reproduces-decline
+    classification: primary
+    question: "Does the aggregate (summed-across-layers) EPS mass, mapped through the already-fitted mass-to-coverage transform, show a net decline over t=70-80h at any tested shedding half-life?"
+    measure:
+      kind: listener_median
+      path: layers.0.eps
+      window: whole_run
+    pass_if:
+      op: at_least
+      low: 1.0
+      provenance:
+        kind: theory
+        note: >-
+          Round 1 (stale/wrong mass-to-coverage scale, comparison artifact,
+          not a real result): RMSE 10.4-11.6, R^2 0.70-0.90, no decline.
+          Round 2 (real depletion + properly refit scale=1.00mg): RMSE
+          14.9-17.9, R^2 0.70-0.79, best fit still no-shedding, RMSE
+          monotonically worsens as shedding increases -- no half-life
+          reproduces the decline.
+    status: failed
+readouts:
+  - name: per-layer-biomass
+    store_path: layers
+    description: "Per-layer (0=surface..2=basal) biomass and eps state, keyed by string layer index."
+    units: "gDW (biomass), mg (eps)"
+    status: available
+  - name: aa-concentration-by-layer
+    store_path: fields.substrates
+    description: "Per-amino-acid concentration, keyed by reaction id then by string layer index (0..2)."
+    units: mM
+    status: available
+model_change:
+  base_model: pbg_eps_biofilm/eps_ecoli_model_lb_epspool.xml
+  new_processes:
+    - DepthDiffusionStep
+  new_state_variables:
+    - layers (per-layer local biomass/eps, replacing the single well-mixed fields.biomass/fields.eps)
+  new_parameters:
+    - num_layers
+    - diffusion_coeff_cm2_per_h
+    - surface_eps_shed_rate
+    - substrate_reference_volume_L (added to EpsFBAStep itself, round 2 — default 1.0 = exact no-op for every prior study)
+  new_listeners: []
+  modified_processes:
+    - EpsFBAStep (substrate_reference_volume_L only — zero change to any other logic; default reproduces every prior validated run bit-for-bit)
+robustness:
+  n_replicates: 1
+  seeds: [0]
+  parameter_sweep: true
+limitations:
+  - "Deterministic FBA, single seed sufficient."
+  - "Runs executed via standalone driver scripts (run_depth_scaffold.py, run_penetration_depth_check.py, run_volume_fixed_refit_sweep.py), not through the dashboard's tracked emitter/run-db — no parquet/sqlite run persistence for this study."
+  - "diffusion_coeff_cm2_per_h uses a representative small-solute aqueous diffusivity (1e-5 cm^2/s) x Stewart 2003's organic-solute ratio (0.25) — not a per-amino-acid literature value, one uniform number for all 20 AAs."
+  - "N=3 layers, not resolution-swept — a finer grid was not tested given the negative result and this machine's compute constraints during this session."
+  - "eps_shed_rate has no literature anchor (confirmed via a fresh, independent web search this round — no universal biofilm erosion/turnover rate constant exists in the literature; BcsZ's real enzyme kinetics, Km=8.86mg/mL Vmax=0.3uM/min*mg, are cellulose-specific and require an unknown enzyme-concentration assumption to convert to this model's rate)."
+falsifiability: >
+  Would be overturned by any tested surface_eps_shed_rate producing a net
+  decline in aggregate coverage(t=80h) < coverage(t=70h) — none did, in
+  either round.
+conclusion_verdicts:
+  regression_compatibility:
+    basis: >-
+      Builds on EpsFBAStep unchanged (round 1) plus one new no-op-default
+      config field (round 2, substrate_reference_volume_L=1.0 reproduces
+      every prior study's numbers exactly). DepthDiffusionStep is new,
+      standalone, smoke-tested independently before integration.
+  biological_validation:
+    basis: >-
+      Confirmed negative, now for a mechanistically clear reason: AA
+      concentration plateaus at a steady, nonzero level (diffusion resupply
+      balances consumption) rather than approaching zero — production is
+      throttled to a reduced but still-substantial steady rate, which no
+      constant-fraction removal term can beat. This rules out "the units bug
+      was masking a working mechanism."
+  explanatory_gain:
+    basis: >-
+      Closes off passive/constant-rate erosion (in any spatial structure
+      tested) as an explanation for the real decline — redirects the open
+      question toward real triggered/active dispersal biology, which is now
+      the concrete ask sent to the wet-lab collaborator rather than further
+      in-silico tuning.
+findings:
+  - id: F-01
+    tier: observation
+    statement: "spatio-flux's DiffusionAdvection process has a real shape-order bug: its inputs()/outputs() declare `_shape` from `n_bins` in (nx,ny) order, but its internal update() enforces the array shape in (ny,nx) order — these only ever agree on square grids (true of every existing spatio_flux test/composite). Confirmed via a direct smoke test with a thin (1,3) grid, which raised a shape-mismatch ValueError."
+    claim_scope: local-implementation
+    lifecycle_state: observation
+    generality:
+      axes_tested: []
+      level: instance_specific
+    next_action: "Not patched (external/spatio-flux is a pinned git submodule) -- worth reporting upstream. Worked around by building DepthDiffusionStep instead."
+    evidence:
+      from_test: real-depth-gradient-develops
+  - id: F-02
+    tier: mechanism
+    statement: "Round 1 (well-mixed-equivalent no-op substrate volume): differentiated surface-only erosion, swept across 4 half-lives, does not reproduce the real decline -- best RMSE fit is still no-shedding, and RMSE monotonically worsens as shedding increases."
+    mechanism_origin: engineered
+    claim_scope: mechanism
+    lifecycle_state: tested-vs-alternatives
+    generality:
+      axes_tested: [parameter_sweep]
+      level: mechanism
+    next_action: "Investigate whether a real units bug in the substrate-uptake cap was suppressing meaningful local depletion (it was -- see F-03/F-04)."
+    evidence:
+      from_test: surface-erosion-reproduces-decline
+  - id: F-03
+    tier: observation
+    statement: "EpsFBAStep's substrate-uptake cap (remaining/(biomass*interval)) mixed AA concentration (mM=mmol/L) with total biomass (gDW) with no explicit shared reference volume -- a units ambiguity present since the original static-phase model, only dimensionally sensible if the pool were implicitly 1L, never chosen deliberately. Fixed via a new substrate_reference_volume_L config (default 1.0 = exact no-op for every existing study)."
+    claim_scope: local-implementation
+    lifecycle_state: observation
+    generality:
+      axes_tested: [alt_implementation]
+      level: instance_specific
+    next_action: ''
+    evidence:
+      from_test: real-depth-gradient-develops
+  - id: F-04
+    tier: mechanism
+    statement: "Round 2 (real per-layer volume anchoring): real depletion now occurs (AA 6.1->~3.0mM, genuine depth gradient) and EPS mass output correctly dropped ~20x to a physically grounded scale (max ~1.9mg vs ~39mg pre-fix). Re-swept the same 4 half-lives at a properly refit mass-to-coverage scale (1.00mg, refit against the new baseline since the old 10.93mg scale no longer applied) -- STILL no decline at any half-life, same monotonic-worsening-with-shedding pattern as round 1."
+    mechanism_origin: engineered
+    claim_scope: mechanism
+    lifecycle_state: tested-vs-alternatives
+    generality:
+      axes_tested: [parameter_sweep, alt_implementation]
+      level: mechanism
+    next_action: "Real triggered/active dispersal biology is needed, not further passive-mechanism tuning -- ask sent to Nona (real turnover rate, or a read on continuous-erosion vs. distinct-dispersal-event) via notes/eps-findings-for-nona.md."
+    evidence:
+      from_test: surface-erosion-reproduces-decline
+  - id: F-05
+    tier: mechanism
+    statement: "Diagnosed WHY round 2 still fails: AA concentration plateaus at a steady ~3.0mM (diffusion resupply from the bulk settles into balance with consumption) rather than approaching zero. Production is throttled to a reduced-but-still-substantial steady rate, never actually vanishing -- a constant-fraction removal term cannot beat a production rate that is merely reduced rather than genuinely vanishing. Same mathematical wall as flow-real-calibration's F-03, now confirmed to hold even with correct, physically-grounded depletion."
+    claim_scope: mechanism
+    lifecycle_state: tested-vs-alternatives
+    generality:
+      axes_tested: [parameter_sweep, alt_implementation]
+      level: mechanism
+    next_action: ''
+    evidence:
+      from_test: surface-erosion-reproduces-decline

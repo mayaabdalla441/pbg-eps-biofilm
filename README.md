@@ -51,6 +51,8 @@ composites and investigations; regenerate any time with
 
 | Composite | What it is |
 |---|---|
+| `eps_biofilm_static` | Static-phase (no-flow) dFBA for E. coli producing pooled EPS[e] on LB medium. |
+| `eps_biofilm_static_cdfba` | Static-phase (no-flow) dFBA for E. coli producing pooled EPS[e] on LB medium, built on cdFBA's dFBA process (shared_environment/Volumetric convention) instead of spatio-flux's DynamicFBA. Same two-st… |
 <!-- END:composites -->
 
 ### Investigations
@@ -60,6 +62,7 @@ composites and investigations; regenerate any time with
 
 | Investigation | Research question |
 |---|---|
+| [Static-Phase EPS dFBA — Framework Cross-Validation _(running)_](https://mayaabdalla441.github.io/pbg-eps-biofilm/investigations/eps-biofilm-dfba-static.html) | Does a two-stage (maximize growth, then floor growth and maximize pooled EPS[e]) dynamic FBA correctly reproduce the expected batch-culture dynamics -- exponential growth, an amino-acid depletion cas… |
 <!-- END:investigations -->
 
 ## Layout

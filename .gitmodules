@@ -1,0 +1,7 @@
+[submodule "external/spatio-flux"]
+	path = external/spatio-flux
+	url = https://github.com/vivarium-collective/spatio-flux.git
+	branch = main
+[submodule "external/cdFBA"]
+	path = external/cdFBA
+	url = https://github.com/vivarium-collective/cdFBA.git

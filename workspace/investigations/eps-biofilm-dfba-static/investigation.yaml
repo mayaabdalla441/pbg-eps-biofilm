@@ -1,0 +1,295 @@
+# eps-biofilm-dfba-static/investigation.yaml — schema v2
+schema_version: 2
+name: eps-biofilm-dfba-static
+title: "EPS dFBA — Static-Phase Cross-Validation, Real-Data Calibration, and the Late-Decline Investigation"
+created: '2026-08-03'
+status: running
+
+inputs:
+  datasets:
+    - inputs/datasets/combined_eps_dataset_8_to_80h.csv
+    - inputs/datasets/combined_eps_dataset_8_to_80h.xlsx
+  references: []
+  expert_docs:
+    - name: "EPS 8-80h 2D analysis in 3D chamber report (Nona Hashemi)"
+      path: inputs/expert_docs/EPS_8_to_80h_2D_analysis_in_3D_chamber_report.docx
+
+# Literature the agent found and used during calibration -- NOT expert-provided, pending
+# review/approval. On approval, promote each accepted `kind: reference` item into
+# inputs.references above (its `id` doubles as the bib-key) and record on the workbench.
+proposed_inputs:
+  _note: "Agent-suggested literature used during flow-phase calibration -- expert has not yet reviewed/approved any of these."
+  items:
+    - id: stewart2003-diffusion-in-biofilms
+      kind: reference
+      citation: "Stewart, P.S. (2003). Diffusion in Biofilms. Journal of Bacteriology, 185(5), 1485-1491. doi:10.1128/jb.185.5.1485-1491.2003"
+      proposed_by: agent
+      proposed_at: '2026-08-04'
+      rationale: >-
+        Effective diffusivity ratios (D_e/D_aq) for solutes in biofilms relative to water --
+        light gases ~0.6, organic solutes ~0.25, general range 0.2-0.8 (mean ~0.4), depends on
+        biomass density. Source for viva-biofilm's diff_liquid/diff_biofilm solute parameters,
+        motivating a diffusion-limited-EPS-production mechanism (the current well-mixed model
+        cannot reproduce the real EPS-coverage decline at t=72-80h; diffusion limitation into a
+        dense, matrix-encased biofilm is the leading hypothesis).
+      provenance: "web search + WebFetch of the primary review, this session, 2026-08-04"
+      status: pending
+    - id: guglielmi-microfluidic-biofilm-mg1655
+      kind: reference
+      citation: >-
+        "High-Throughput Microfluidic Method To Study Biofilm Formation and Host-Pathogen
+        Interactions in Pathogenic Escherichia coli", Applied and Environmental Microbiology,
+        81(8):2827. PMC4375333.
+      proposed_by: agent
+      proposed_at: '2026-08-04'
+      rationale: >-
+        K-12 MG1655 biovolume-per-substratum-area (7.85 +/- 0.92 um^3/um^2) in a real
+        microfluidic flow channel -- used (with Smaluch et al.'s dry-mass density) to derive a
+        candidate B_max areal density (~0.10-0.22 mg/cm^2), still not yet in the same unit space
+        as this model's biomass state (blocked on real chamber inoculation data).
+      provenance: "web search + WebFetch, this session, 2026-08-04"
+      status: pending
+    - id: smaluch2022-single-cell-growth-kinetics
+      kind: reference
+      citation: >-
+        Smaluch, K., Wollenhaupt, B., Steinhoff, H., Kohlheyer, D., Grünberger, A., Dusny, C.
+        (2022). Assessing the growth kinetics and stoichiometry of Escherichia coli at the
+        single-cell level. Engineering in Life Sciences. doi:10.1002/elsc.202100157
+      proposed_by: agent
+      proposed_at: '2026-08-04'
+      rationale: >-
+        User-supplied paper. K-12 MG1655 single-cell dry-mass density (0.13-0.28 pg/um^3, i.e.
+        g/cm^3) -- used for the B_max areal-density derivation above. Also reports real MG1655
+        Monod kinetics (mu_max=0.66/h, Ks=486+/-234 ug/L glucose) as an independent sanity-check
+        anchor, not yet directly used in calibration.
+      provenance: "user-supplied citation, verified via WebFetch of the PMC open-access mirror, this session, 2026-08-04"
+      status: pending
+    - id: qin2022-ecoli-biofilm-water-content
+      kind: reference
+      citation: >-
+        "Adaptation of Escherichia coli Biofilm Growth, Morphology, and Mechanical Properties to
+        Substrate Water Content", ACS Biomaterials Science & Engineering (2022). PMC8579398.
+      proposed_by: agent
+      proposed_at: '2026-08-04'
+      rationale: >-
+        E. coli K-12 AR3110 macrocolony biofilm dry mass (7.7-11.5 mg) and thickness (60-80 um)
+        on agar. Cross-check estimate for B_max (~4.4-6.5 mg/cm^2, derived by dividing by plate
+        area) -- ~20x higher than the microfluidic-derived estimate, flagged as a different
+        (denser, macrocolony) biofilm regime, not directly comparable to Nona's flow-chamber
+        system.
+      provenance: "web search + WebFetch, this session, 2026-08-04"
+      status: pending
+    - id: pmc7698454-ecoli-eps-areal-mass
+      kind: reference
+      citation: "E. coli intraspecies-diversity biofilm EPS matrix quantification paper. PMC7698454."
+      proposed_by: agent
+      proposed_at: '2026-08-04'
+      rationale: >-
+        Real E. coli EPS areal dry-mass quantification: 73.1 ug/cm^2 (single-strain, 48h,
+        urinary isolates UI1-UI6) vs 19.9 ug/cm^2 (six-strain). Independent EPS-mass data point,
+        not yet used in the current calibration (different strains, different question --
+        genotypic-diversity tradeoff, not temporal dynamics).
+      provenance: "web search + WebFetch, this session, 2026-08-04"
+      status: pending
+    - id: rpos-csgd-stationary-phase-matrix-general
+      kind: mechanism
+      summary: >-
+        Curli/cellulose biosynthesis in E. coli is RpoS-dependent and CsgD-controlled, induced
+        specifically in early stationary phase (growth ~stopped), not during active/near-maximal
+        growth -- aggregated from several papers on the RpoS->MlrA->CsgD regulatory cascade
+        during a web search, NOT a single primary-source quote.
+      proposed_by: agent
+      proposed_at: '2026-08-04'
+      rationale: >-
+        Motivated the growth-rate-cap sensitivity test (flow_phase_open_issues item A.1) and the
+        general framing that EPS production activates as growth winds down rather than
+        continuing alongside near-maximal growth. NEEDS RE-VERIFICATION against one specific
+        primary source (e.g. a Romling or Hengge review) before this goes in any report or paper
+        -- explicitly flagged as unconfirmed when first found.
+      provenance: "aggregated web search, this session, earlier in the flow-phase calibration work"
+      status: pending
+
+question: |
+  Does a two-stage (maximize growth, then floor growth and maximize pooled EPS[e])
+  dynamic FBA correctly reproduce the expected batch-culture dynamics -- exponential
+  growth, an amino-acid depletion cascade, and a growth/EPS plateau -- for E. coli on
+  LB medium during the static (no-flow) phase of a biofilm chip experiment? And does
+  the same algorithm produce consistent results when implemented independently in two
+  different process-bigraph frameworks (spatio-flux and cdFBA)?
+
+hypothesis: |
+  A correctly-implemented two-stage dFBA should reproduce the amino-acid depletion
+  cascade and growth-rate magnitude already established in prior (non-process-bigraph)
+  work on this project, and two independent framework implementations of the identical
+  algorithm, given identical inputs, should converge to identical trajectories.
+
+lead: |
+  This investigation ports a previously-validated batch dFBA model (E. coli, iML1515 +
+  three added EPS pathways pooled into a single EPS[e] reaction) into process-bigraph,
+  the compositional simulation framework this project is moving to. The same two-stage
+  growth-then-EPS algorithm was implemented independently on top of two different
+  process-bigraph-based libraries -- spatio-flux's DynamicFBA and cdFBA's dFBA -- to
+  cross-validate the port before building on it further.
+
+  UPDATE 2026-08-17/18: the investigation grew beyond framework cross-validation into
+  two further studies. flow-real-calibration extends the model to Nona's real two-phase
+  chamber protocol and, for the first time, anchors growth rate/timing/B0/B_max to her
+  real 8-80h imaging data instead of placeholders -- then tests whether EPS shedding +
+  a diffusion throttle can reproduce the real t=72-80h EPS-coverage decline her data
+  shows (negative). depth-decline-test follows up with a depth-resolved spatial model
+  (surface erosion vs. protected interior) built without waiting on viva-biofilm's
+  stubbed Phase B, finds and fixes a real substrate-uptake units bug along the way, and
+  is still negative even after the fix -- now for a mechanistically clear reason (see
+  that study's findings). The open question has shifted from "is our model missing a
+  mechanism" to "is real triggered dispersal biology needed" -- a concrete ask is now
+  sitting with the wet-lab collaborator (see flow-real-calibration and
+  depth-decline-test's studies, and notes/eps-findings-for-nona.md).
+
+executive:
+  what_is_this: >-
+    Two independent process-bigraph implementations of the same two-stage
+    growth-then-EPS[e] dFBA algorithm for the static (t=0-4h) phase of E. coli
+    biofilm growth on LB medium, cross-validated against each other and against
+    a from-scratch manual calculation.
+  verdict: >-
+    Both implementations reproduce the expected depletion-cascade dynamics and
+    agree with each other exactly (biomass=1.6262 gDW/L, EPS=283.527 mg at the
+    t≈4.4h plateau) and with an independent from-scratch raw-cobra replication of
+    the first 20 timesteps. Three real bugs were found and fixed during
+    development (untrusted flux on an infeasible solve in the spatio-flux
+    version; a Volumetric-type counts-dropping bug in the cdFBA version; a
+    substrate/biomass-accounting inconsistency in both, where update() reported
+    stage 1's -- growth-maximizing -- flux instead of stage 2's -- the actual
+    floored-growth-then-EPS-maximizing solve -- for biomass and substrate
+    consumption, which is not mass-balanced. Fixed 2026-08-04; headline numbers
+    above reflect the fix, not the original pre-fix values.).
+  verdict_status: passed
+  verdict_detail: >-
+    Code-correctness is verified: both implementations correctly execute the
+    algorithm as specified. This does NOT verify the algorithm's biological
+    accuracy -- the 90% growth-floor assumption, the hard-cap (non-kinetic)
+    depletion mechanism, and the 1/3-each EPS[e] mass split are all still
+    unvalidated against real biological data (see decisions_needed).
+    UPDATE 2026-08-18: the port itself remains validated and is now also
+    real-data-calibrated (flow-real-calibration). Four independent negative
+    results across two follow-on studies confirm the current model class
+    (well-mixed or spatially-differentiated, passive/constant-rate removal)
+    cannot reproduce the real t=72-80h EPS-coverage decline -- an honest,
+    well-characterized open question, not a code defect. See
+    flow-real-calibration and depth-decline-test.
+  decisions_needed:
+    - question: "Is the 90% growth-floor assumption during EPS production biologically defensible?"
+      context: >-
+        Literature review (Serra/Hengge macrocolony work) suggests real EPS/matrix
+        production in E. coli is associated with growth slowing substantially more
+        than 10% (a shift toward stationary-phase physiology, RpoS/CsgD-driven),
+        not a fixed 90%-of-max floor. No literature value for the "correct" floor
+        was found; this remains an assumption, not a validated parameter.
+    - question: "Should the flow-phase (t=3-72h) model reuse this static-phase code as-is?"
+      context: >-
+        RESOLVED by flow-real-calibration: yes, reused via a flowing-branch
+        extension to EpsFBAStep, and real-anchored against Nona's data
+        (growth_rate_cap_fraction=0.095, initial_biomass=2.4e-7 gDW,
+        biomass_carrying_capacity=4.17e-4 gDW, all derived from her real
+        inoculation count + fitted growth curve, verified by simulation).
+    - question: >-
+        A real turnover/erosion rate for EPS matrix removal, or a read on
+        whether the real t=72-80h coverage decline looks like continuous
+        erosion under flow vs. a distinct triggered dispersal-like event.
+      context: >-
+        Four independent negative results (flow-real-calibration's global
+        shedding+throttle sweep at two scales; depth-decline-test's
+        spatially-differentiated surface-erosion sweep, both before and
+        after fixing a real substrate-uptake units bug) all confirm a
+        passive/constant-rate removal mechanism cannot reproduce the real
+        decline. The sent ask is in notes/eps-findings-for-nona.md — this is
+        now the actual blocker, not further in-silico tuning.
+    - question: >-
+        Is viva-biofilm's Phase B (diff_biofilm spatial-diffusion support,
+        currently a stub) in progress, on the roadmap, or something we should
+        build ourselves?
+      context: >-
+        Sent to the PI, response pending as of 2026-08-18. Turned out not to
+        block progress either way — depth-decline-test built its own local
+        DepthDiffusionStep instead after finding a real bug in spatio-flux's
+        own DiffusionAdvection process for non-square grids.
+
+scientific_argument:
+  main_claim: >-
+    The process-bigraph port of the two-stage dFBA algorithm is implemented
+    correctly -- verified by exact agreement between two independent framework
+    implementations and a from-scratch manual replication -- and reproduces the
+    same qualitative and quantitative depletion-cascade behavior already
+    established in the pre-process-bigraph version of this project.
+  evidence_for:
+    - "Both EpsFBAStep (spatio-flux) and EpsCdFBAStep (cdFBA) produce identical trajectories at every recorded timestep through the full 5h run, including the exact plateau time and values."
+    - "A from-scratch, framework-free manual replication (raw cobra calls only) of the first 20 timesteps matches both implementations exactly, once an ordering bug in the manual script itself was found and fixed."
+    - "The growth-plateau timing (t≈4.4h at dt=0.01h) falls close to the two dt-resolution measurements from the original (non-process-bigraph) project (t~3.83h at dt=0.001h, t~4.2h at dt=0.1h) -- note the original project's implementation predates the 2026-08-04 substrate-accounting fix, so this is not a fully apples-to-apples comparison."
+  evidence_against: []
+  key_figures:
+    - "workspace/investigations/eps-biofilm-dfba-static/studies/spatioflux-dfba-static/charts/trajectory.png"
+    - "workspace/investigations/eps-biofilm-dfba-static/studies/cdfba-dfba-static/charts/trajectory.png"
+  caveats:
+    - "Cross-implementation agreement verifies code correctness, not biological correctness -- both implementations wrap the exact same model file, aa_bounds/initial_aa_conc data, and two-stage design, so a wrong assumption in any of those would be reproduced identically by both, not caught by this cross-check."
+    - "dt=0.01h has not been formally convergence-tested on the full multi-step loop (only spot-checked at the single-step level in earlier, pre-process-bigraph work)."
+    - "A growth-rate-cap sensitivity test (EpsFBAStep's growth_rate_cap_fraction, default 1.0/no-op) found the model highly sensitive to whether cells grow at the unconstrained FBA optimum vs. a capped fraction of it -- even a 75%-of-optimum cap produces roughly 2.3x the baseline's EPS. Not yet a validated mechanism, just a sensitivity finding; see flow_phase_open_issues project notes."
+
+biological_story: |
+  When E. coli is growing in a nutrient-rich medium like LB, it dedicates most
+  of its metabolic flux to biomass production -- growth is fast and EPS
+  (extracellular polymeric substance: cellulose, colanic acid, PNAG) is a
+  minor byproduct. As amino acids in the medium are consumed and start to run
+  out, cells shift resource allocation: growth slows, and a larger share of
+  the flux still available is redirected toward EPS/matrix production, the
+  precursor to biofilm formation. This investigation models that shift as a
+  two-stage optimization repeated every dFBA timestep: first solve for
+  unconstrained maximum growth, then re-solve with growth floored at 90% of
+  that optimum and EPS[e] (a single pooled reaction combining cellulose,
+  colanic acid, and PNAG on a 1/3-each mass basis) maximized instead.
+
+  Over a 5-hour batch run on LB medium, this produces the expected qualitative
+  story: exponential growth while amino acids are abundant, a depletion
+  cascade as individual amino acids run out one at a time (each capped by a
+  hard uptake limit tied to what remains in the medium), and a growth/EPS
+  plateau once the depletion cascade is far enough along that growth becomes
+  infeasible even at the floored rate. EPS continues to accumulate right up to
+  that plateau, because it is growth's flux that gets floored and capped by
+  depletion -- not EPS synthesis directly -- so flux is still available for
+  EPS production even as growth itself is being throttled down.
+
+  The mechanism was implemented twice, independently, on two different
+  process-bigraph frameworks (spatio-flux and cdFBA) as a code-correctness
+  check before relying on it further. Both reach the identical plateau
+  (t≈4.4h, biomass=1.6262 gDW/L, eps=283.527 mg under LB amino-acid
+  conditions), and a third, framework-free manual replication against raw
+  cobra calls matches both exactly. What this does NOT establish is whether
+  90% is the biologically correct growth floor, or whether hard-cap depletion
+  and the 1/3-each EPS split are the right modeling choices -- all three
+  checks share the same assumptions, so agreement between them is a
+  code-correctness signal, not a biological validation.
+
+at_a_glance:
+  - study: spatioflux-dfba-static
+    role: "Reference implementation, built on spatio-flux's DynamicFBA."
+  - study: cdfba-dfba-static
+    role: "Independent cross-validation implementation, built on cdFBA's dFBA (per-PI direction to evaluate cdFBA as the primary framework going forward)."
+  - study: flow-real-calibration
+    role: "Extends to Nona's real two-phase protocol, anchors growth/timing/B0/B_max to real data, tests (negative) whether well-mixed shedding+throttle explains the real late-stage decline."
+  - study: depth-decline-test
+    role: "Depth-resolved spatial follow-up (surface erosion vs. protected interior); finds+fixes a real substrate-uptake units bug; still negative post-fix, but with a mechanistically complete explanation."
+
+studies:
+  - spatioflux-dfba-static
+  - cdfba-dfba-static
+  - flow-real-calibration
+  - depth-decline-test
+
+acceptance_criteria:
+  - study: spatioflux-dfba-static
+    behavior: reproduces-known-depletion-cascade-and-plateau
+  - study: cdfba-dfba-static
+    behavior: matches-spatioflux-implementation-exactly
+  - study: flow-real-calibration
+    behavior: matches-real-growth-timing
+  - study: depth-decline-test
+    behavior: real-depth-gradient-develops

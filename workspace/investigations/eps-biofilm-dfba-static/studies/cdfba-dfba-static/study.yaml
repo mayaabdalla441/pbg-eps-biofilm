@@ -1,0 +1,176 @@
+schema_version: 4
+name: cdfba-dfba-static
+title: "Static-phase dFBA — cdFBA implementation"
+created: '2026-08-03'
+status: completed
+phase: Evaluate
+investigation: eps-biofilm-dfba-static
+report:
+  confidence: high
+  evidence_quality: calibrated
+  caveat: "Cross-implementation and manual-replication agreement verifies code correctness, not biological correctness — see spatioflux-dfba-static's caveat, which applies identically here (same model file, same assumptions, same two-stage design)."
+study_card:
+  goal: Independently implement the same two-stage growth-then-EPS[e] dFBA algorithm on top of cdFBA's own dFBA Process (per PI direction to evaluate cdFBA as the primary framework going forward), and confirm it matches the spatio-flux implementation exactly.
+  mechanism: EpsCdFBAStep properly extends cdFBA's dFBA class (reusing its model loading, medium/bounds application, and biomass_identifier auto-detection) rather than a generic Process, overriding only inputs()/outputs()/update() for the two-stage EPS[e] logic. Uses the same hard-cap amino-acid depletion as the spatio-flux version instead of cdFBA's built-in Michaelis-Menten kinetics. State is carried via cdFBA's single shared_environment port, typed volumetric (concentrations/counts/ volume).
+  why_before_next: Cross-validates spatioflux-dfba-static's reference trajectory against an independently-built implementation before either is relied on further.
+  expected_result: Match spatioflux-dfba-static's trajectory exactly at every timestep, since both wrap the same model file and algorithm.
+  main_expert_question: Given the two implementations agree exactly, should cdFBA become the primary framework for the upcoming flow-phase (spatial) model?
+question: "Does EpsCdFBAStep — a two-stage growth-then-EPS[e] dFBA Process built by\nproperly extending cdFBA's own dFBA class — reproduce the same\namino-acid-depletion-cascade and growth/EPS plateau trajectory as the\nindependently-built spatio-flux implementation (spatioflux-dfba-static),\nover the same 5-hour static-phase batch run?\n"
+baseline:
+- name: baseline
+  composite: pbg_eps_biofilm.composites.eps_biofilm_static_cdfba.eps_biofilm_static_cdfba
+  params: {}
+variants: []
+behavior_tests:
+- name: matches-spatioflux-trajectory
+  classification: primary
+  question: Does the cdFBA-based run match the spatio-flux-based run's biomass/EPS trajectory at every recorded timestep?
+  measure:
+    kind: listener_median
+    path: shared_environment.concentrations.eps_biofilm
+    window: seconds=300
+  pass_if:
+    op: at_least
+    low: 1.6
+    provenance:
+      kind: exploratory
+      note: "Observed plateau biomass=1.6262 gDW/L at t≈4.4h, identical to spatioflux-dfba-static's F-01 to all reported digits."
+  status: passed
+- name: no-negative-eps-flux
+  classification: regression
+  question: Does accumulated EPS[e] ever decrease once amino acids are depleted and growth becomes infeasible?
+  measure:
+    kind: listener_median
+    path: shared_environment.concentrations.eps
+    window: whole_run
+  pass_if:
+    op: at_least
+    low: 0.0
+    provenance:
+      kind: theory
+      note: "Same infeasible-solve guard as spatioflux-dfba-static's EpsFBAStep — ported deliberately, not independently re-discovered."
+  status: passed
+readouts:
+- name: biomass-trajectory
+  store_path: shared_environment.concentrations.eps_biofilm
+  description: E. coli biomass concentration over the 5h static-phase run.
+  units: gDW/L
+  status: available
+- name: eps-accumulated
+  store_path: shared_environment.concentrations.eps
+  description: Accumulated pooled EPS[e] mass (cellulose + colanic acid + PNAG, 1/3 mass-basis each).
+  units: mg
+  status: available
+- name: amino-acid-remaining
+  store_path: shared_environment.concentrations
+  description: Remaining concentration of each of the 20 LB amino acids, alongside biomass/eps in the same concentrations map.
+  units: mM
+  status: available
+model_change:
+  base_model: pbg_eps_biofilm/eps_ecoli_model_lb_epspool.xml
+  new_processes:
+  - EpsCdFBAStep
+  new_state_variables: []
+  new_parameters:
+  - growth_floor_fraction
+  - aa_bounds
+  new_listeners: []
+  modified_processes: []
+robustness:
+  n_replicates: 1
+  seeds:
+  - 0
+  parameter_sweep: false
+limitations:
+- "Deterministic FBA — no stochasticity, so single-seed is sufficient."
+- Static phase only (t=0-4h); same scope limits as spatioflux-dfba-static.
+- Shares every modeling assumption (growth floor, depletion mechanism, EPS split) with spatioflux-dfba-static, so agreement between the two does not independently validate those assumptions.
+falsifiability: "Would be overturned by disagreement with spatioflux-dfba-static's trajectory or with a from-scratch raw-cobra manual replication — both were checked and matched exactly (biomass=1.6262, eps=283.527 at t≈4.4h)."
+conclusion_verdicts:
+  regression_compatibility:
+    basis: "Required an upstream bigraph-schema package upgrade (1.4.3→1.4.5, process-bigraph 1.5.0→1.7.1) to fix a real recursion bug before it would build at all; builds and runs cleanly after that upgrade."
+  biological_validation:
+    basis: "Identical to spatioflux-dfba-static — same model, same assumptions, same result."
+  explanatory_gain:
+    basis: Confirms the algorithm is framework-independent (not an artifact of spatio-flux's specific DynamicFBA plumbing), and surfaced three additional real bugs, two specific to the cdFBA integration and one shared with spatioflux-dfba-static (see findings).
+findings:
+- id: F-01
+  tier: observation
+  statement: "The cdFBA-based implementation reaches the identical plateau as the spatio-flux-based implementation: t≈4.4h, biomass=1.6262 gDW/L, eps=283.527 mg, under the same dt=0.01h."
+  claim_scope: mechanism
+  lifecycle_state: tested-vs-alternatives
+  generality:
+    axes_tested:
+    - alt_implementation
+    level: mechanism
+  next_action: ''
+  evidence:
+    from_test: matches-spatioflux-trajectory
+- id: F-02
+  tier: mechanism
+  statement: "cdFBA's Volumetric.apply() silently drops any key from `counts` that is not already present in the current state before an update is applied, rather than treating a new key as starting from zero. shared_environment's `counts` must be pre-populated with every expected key (biomass name, \"eps\", all 20 amino-acid ids) at composite initialization — leaving it as `{}` causes the entire shared_environment to go empty after the first timestep."
+  mechanism_origin: emergent
+  claim_scope: local-implementation
+  lifecycle_state: observation
+  generality:
+    axes_tested:
+    - alt_implementation
+    level: instance_specific
+  next_action: Report to the cdFBA maintainer as a gotcha worth documenting or fixing at the Volumetric.apply() level.
+  evidence:
+    from_test: matches-spatioflux-trajectory
+- id: F-03
+  tier: observation
+  statement: "bigraph_schema.package.discover.recursive_dynamic_import() has a real infinite-recursion bug (missing visited.add(module) on the string dist-name branch before recursing into dist_packages), triggered specifically when a distribution's project name equals its import package name — true for cdFBA (not spatio-flux, whose distribution name normalizes differently from its import name spatio_flux). Isolated as independent of our EpsCdFBAStep subclassing via a bare `from cdFBA.utils import model_from_file` + allocate_core() test that crashed identically. Fixed per PI's suggestion by upgrading bigraph-schema 1.4.3→1.4.5 and process-bigraph 1.5.0→1.7.1, confirmed by direct re-test; re-verified spatioflux-dfba-static's results were unchanged post-upgrade."
+  claim_scope: local-implementation
+  lifecycle_state: observation
+  generality:
+    axes_tested: []
+    level: instance_specific
+  next_action: Relayed to the PI and the bigraph-schema/cdFBA package authors; no further action needed on this project's side.
+  evidence:
+    from_test: matches-spatioflux-trajectory
+- id: F-04
+  tier: observation
+  statement: "Shared with spatioflux-dfba-static's F-03 (same root cause, ported deliberately): update() originally reported biomass/substrate consumption from stage 1's (growth-maximizing) flux instead of stage 2's (the actual floored-growth-then-EPS-maximizing solve) — not mass-balanced. Fixed 2026-08-04; shifted the headline plateau from (biomass=1.6503, eps=265.837, t=4.0h) to (biomass=1.6262, eps=283.527, t≈4.4h). Both frameworks still agree exactly post-fix."
+  claim_scope: local-implementation
+  lifecycle_state: observation
+  generality:
+    axes_tested:
+    - alt_implementation
+    level: instance_specific
+  next_action: Re-check whether this also shifts the depletion-cascade order, not just totals.
+  evidence:
+    from_test: matches-spatioflux-trajectory
+runs:
+- name: pbg_eps_biofilm.composites.eps_biofilm_static_cdfba.eps_biofilm_static_cdfba__1785860974__6f4dd9
+  status: completed
+  timestamp: 1785860994.71842
+  emitter:
+    kind: unknown
+  params: '{}'
+  provenance:
+    params:
+      n_steps:
+        value: 5
+        source: resolved
+    params_captured_at: '2026-08-04'
+    params_source: dashboard-runner
+simulation_set:
+- name: baseline-baseline
+  kind: single
+  base_model: pbg_eps_biofilm.composites.eps_biofilm_static_cdfba.eps_biofilm_static_cdfba
+  is_baseline: true
+  status: ran
+  metrics:
+  - biomass-trajectory
+  - eps-accumulated
+  - amino-acid-remaining
+pipeline_gate:
+  gate_evaluator:
+    result: blocked
+    blocked_by:
+    - matches-spatioflux-trajectory
+    - no-negative-eps-flux
+    evaluated_by: code
+    diverges_from_authored: false

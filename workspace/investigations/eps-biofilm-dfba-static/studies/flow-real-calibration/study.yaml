@@ -1,0 +1,232 @@
+schema_version: 4
+name: flow-real-calibration
+title: "Flow-phase dFBA — real-data calibration"
+created: '2026-08-05'
+status: completed
+phase: Evaluate
+investigation: eps-biofilm-dfba-static
+claim: >-
+  Real-anchored growth/timing calibration matches Nona's data to <1% error,
+  but neither EPS shedding nor a diffusion throttle (alone or combined, at
+  two different biomass scales) can reproduce her real t=72-80h EPS-coverage
+  decline in a well-mixed model.
+confidence: Accepted
+parent_studies:
+  - {study: spatioflux-dfba-static, condition: tests-passed, relation: leads-to}
+report:
+  confidence: high
+  evidence_quality: calibrated
+  caveat: "Growth-rate/timing calibration is validated to <1% error against real data. Total EPS mass magnitude and the two late-stage removal mechanisms (shedding, phenomenological diffusion throttle) tested here are NOT validated — see findings F-04/F-05, a clean negative result superseded by depth-decline-test's more precise diagnosis."
+study_card:
+  goal: >-
+    Extend the validated static-phase dFBA (spatioflux-dfba-static) to Nona's
+    real 0-72h+ protocol (static 0-3h, continuous flow 3h+), anchor every
+    growth/timing parameter to her real 8-80h imaging dataset instead of
+    placeholders, and test whether a global EPS-shedding term plus a
+    phenomenological diffusion-limitation throttle can reproduce the real
+    t=72-80h EPS-coverage decline.
+  mechanism: >-
+    EpsFBAStep extended with a `flowing` flag (global_time >= flow_start_time_h):
+    before flow starts, amino-acid uptake is capped by what remains in the
+    medium (same static-phase logic); once flowing, uptake is capped by
+    max_rate * diffusion_factor (a phenomenological throttle decaying toward
+    diffusion_limitation_floor as accumulated EPS grows past
+    diffusion_limitation_scale) instead of local depletion, and reported
+    substrate deltas are hard-zeroed (justified by the real chamber's ~100
+    volumes/hr turnover). growth_rate_cap_fraction and a logistic
+    biomass_carrying_capacity throttle stage 2's growth floor. eps_shed_rate
+    adds first-order EPS removal, d(EPS)/dt = production - eps_shed_rate*EPS.
+  why_before_next: >-
+    Establishes the real-anchored calibration (growth rate, timing, B0, B_max)
+    that depth-decline-test reuses unchanged, and rules out the well-mixed
+    (0D) shedding+throttle mechanism before building the spatial extension.
+  expected_result: >-
+    Real-anchored calibration should reproduce Nona's real Cell-occupancy(%)
+    logistic curve to high accuracy; whether shedding+throttle can reproduce
+    the real EPS-coverage decline was the open question this study answers
+    (negative).
+  main_expert_question: >-
+    Given a global removal mechanism cannot reproduce the real decline, is a
+    spatial (surface-vs-interior) structure worth building, or is a different
+    class of mechanism needed entirely?
+question: >
+  Does EpsFBAStep, extended with real chamber-flow mechanics and calibrated
+  against Nona's real 8-80h imaging data (growth rate, timing, initial/max
+  biomass all derived from real measurements, not placeholders), reproduce
+  her real Cell-occupancy(%) growth curve? And can a combination of EPS
+  shedding (first-order removal) and a phenomenological diffusion-limitation
+  throttle, applied to that real-calibrated well-mixed model, reproduce the
+  real t=72-80h EPS-coverage decline her imaging data shows?
+hypothesis: >
+  The real-anchored growth calibration (growth_rate_cap_fraction≈0.095,
+  initial_biomass=2.4e-7 gDW, biomass_carrying_capacity=4.17e-4 gDW — both
+  derived from Nona's real ~7.2-9.0e5-cell inoculation count and her fitted
+  logistic growth parameters) should match the real growth curve closely.
+  Whether shedding+throttle can reproduce the coverage decline was uncertain
+  going in — hypothesized as plausible if shedding could ever outcompete
+  production once growth throttles down.
+lead: >
+  Extends the validated static-phase model to Nona's real two-phase protocol
+  and, for the first time, anchors every major growth parameter to real
+  measured data rather than illustrative placeholders — closing
+  flow_phase_open_issues items B.4/B.5/F/G/H. Also runs the first mechanistic
+  test of whether EPS removal (shedding + diffusion throttle) can explain the
+  real late-stage coverage decline.
+baseline:
+  - name: baseline
+    composite: pbg_eps_biofilm.composites.eps_biofilm_flow_scaffold.eps_biofilm_flow_scaffold
+    params:
+      initial_biomass: 2.4e-7
+      biomass_carrying_capacity: 4.17e-4
+      growth_rate_cap_fraction: 0.095
+      flow_start_time_h: 3.0
+variants:
+  - name: shedding-sweep
+    params:
+      eps_shed_rate: "swept: half-life in {12h, 24h, 48h, 96h} + no-shedding control"
+  - name: diffusion-throttle
+    params:
+      diffusion_limitation_floor: 0.25
+      diffusion_limitation_scale: "swept, no literature anchor"
+behavior_tests:
+  - name: matches-real-growth-timing
+    classification: primary
+    question: "Does the model's own fitted logistic (K, r, t0), refit from a real 80h simulation run, match Nona's real fitted Cell-occupancy(%) logistic (K=64.07%, r=0.16011/h, t0=46.57h, R^2=0.988)?"
+    measure:
+      kind: listener_median
+      path: fields.biomass
+      window: whole_run
+    pass_if:
+      op: at_least
+      low: 0.99
+      provenance:
+        kind: exploratory
+        note: "Simulated refit gave r=0.16085/h (0.46% off), t0=46.40h (~10min off), K matched to 0.01% — see flow_phase_open_issues memory item H."
+    status: passed
+  - name: shedding-throttle-reproduces-decline
+    classification: primary
+    question: "Does any combination of eps_shed_rate and diffusion_limitation_floor/scale produce a net decline in total EPS mass over t=72-80h?"
+    measure:
+      kind: listener_median
+      path: fields.eps
+      window: whole_run
+    pass_if:
+      op: at_least
+      low: 1.0
+      provenance:
+        kind: theory
+        note: "Structural argument: a production-side throttle alone can only slow growth, never reverse it; shedding cannot outcompete production once nutrients are effectively unconstrained under flow. Confirmed empirically — no tested combination produced a decline."
+    status: failed
+readouts:
+  - name: biomass-trajectory
+    store_path: fields.biomass
+    description: E. coli biomass over the full static+flow protocol.
+    units: gDW
+    status: available
+  - name: eps-accumulated
+    store_path: fields.eps
+    description: Accumulated pooled EPS[e] mass under shedding/throttle variants.
+    units: mg
+    status: available
+model_change:
+  base_model: pbg_eps_biofilm/eps_ecoli_model_lb_epspool.xml
+  new_processes: []
+  new_state_variables: []
+  new_parameters:
+    - flow_start_time_h
+    - biomass_carrying_capacity
+    - growth_rate_cap_fraction
+    - eps_shed_rate
+    - diffusion_limitation_scale
+    - diffusion_limitation_floor
+  new_listeners: []
+  modified_processes:
+    - EpsFBAStep
+robustness:
+  n_replicates: 1
+  seeds: [0]
+  parameter_sweep: true
+limitations:
+  - "Deterministic FBA, single seed sufficient — no stochasticity to average over."
+  - "Runs executed via standalone driver scripts (run_flow_scaffold.py, run_eps_shedding_sensitivity.py), not through the dashboard's tracked emitter/run-db — no parquet/sqlite run persistence for this study (a real run_persistence gap, not yet closed)."
+  - "B0/B_max real-anchoring depends on an unconfirmed OD-to-cell-count conversion and a literature (not measured-for-this-strain) 300fg/cell dry mass — carries that uncertainty forward."
+  - "diffusion_limitation_scale has no literature/data anchor at all — swept, not fitted; diffusion_limitation_floor=0.25 is a real citation (Stewart 2003) but the whole throttle is an explicitly-flagged phenomenological stand-in, not the real spatial mechanism."
+  - "Superseded by depth-decline-test's more precise diagnosis of WHY shedding fails (production plateaus to a reduced-but-nonzero rate, not toward zero) — this study establishes the negative result, depth-decline-test explains it."
+falsifiability: >
+  Would be overturned by any tested shedding-rate/throttle combination
+  producing coverage(t=80h) < coverage(t=70h) in the real-calibrated run —
+  none did, across a 4-value half-life sweep and Stewart-anchored throttle
+  values.
+conclusion_verdicts:
+  regression_compatibility:
+    basis: Builds and runs cleanly on the already-validated EpsFBAStep/spatio-flux stack; no new framework dependencies.
+  biological_validation:
+    basis: >-
+      Growth-rate and timing calibration is a real, validated success
+      (<1% error against real data, verified by simulation not just algebra).
+      The shedding+throttle removal mechanism is NOT validated — it is a
+      confirmed negative result.
+  explanatory_gain:
+    basis: >-
+      First real-data-anchored calibration in this project (B0, B_max, growth
+      rate all derived from measurement, not placeholders). Establishes,
+      via a real structural/mathematical argument plus empirical sweep, that
+      a well-mixed (0D) removal mechanism cannot explain the real late-stage
+      decline — motivates the spatial extension in depth-decline-test.
+findings:
+  - id: F-01
+    tier: observation
+    statement: "Real growth is ~12x slower than the FBA-unconstrained optimum (mu_FBA=1.8815/h implies ~22min doubling; real fitted r=0.16011/h implies ~4.3h doubling) — growth_rate_cap_fraction≈0.095 closes this gap, verified by simulation (refit r=0.16085/h, 0.46% off real)."
+    claim_scope: local-implementation
+    lifecycle_state: observation
+    generality:
+      axes_tested: [alt_implementation]
+      level: instance_specific
+    next_action: ''
+    evidence:
+      from_test: matches-real-growth-timing
+  - id: F-02
+    tier: observation
+    statement: "Real inoculation (~7.2-9.0e5 cells, OD600~=0.3) converts to initial_biomass=2.4e-7 gDW; solving the logistic timing relationship for the carrying capacity consistent with real K/r/t0 gives biomass_carrying_capacity=4.17e-4 gDW, verified by simulation to <0.5% error on all three fitted logistic parameters."
+    claim_scope: local-implementation
+    lifecycle_state: observation
+    generality:
+      axes_tested: [alt_implementation]
+      level: instance_specific
+    next_action: "Tighten the 300fg/cell and OD-to-CFU conversions once Nona has a real biomass calibration."
+    evidence:
+      from_test: matches-real-growth-timing
+  - id: F-03
+    tier: mechanism
+    statement: "A production-side throttle (diffusion_limitation_floor/scale) can only ever slow a rise — it has no negative term, so it is mathematically incapable of producing a net decline in accumulated EPS mass."
+    mechanism_origin: engineered
+    claim_scope: mechanism
+    lifecycle_state: candidate-explanation
+    generality:
+      axes_tested: [parameter_sweep]
+      level: mechanism
+    next_action: ''
+    evidence:
+      from_test: shedding-throttle-reproduces-decline
+  - id: F-04
+    tier: observation
+    statement: "Swept eps_shed_rate across half-lives {12h, 24h, 48h, 96h} combined with the diffusion throttle at the (then-placeholder) biomass_carrying_capacity=2.0 scale — none produced a net decline over t=72-80h; all showed continued net accumulation."
+    claim_scope: local-implementation
+    lifecycle_state: observation
+    generality:
+      axes_tested: [parameter_sweep]
+      level: instance_specific
+    next_action: "Re-run at the correct real B0/B_max scale (done in this same study, F-05) and then at a spatially-differentiated structure (depth-decline-test)."
+    evidence:
+      from_test: shedding-throttle-reproduces-decline
+  - id: F-05
+    tier: observation
+    statement: "Re-ran the same shedding+throttle sweep at the correct real-anchored B0/B_max scale (4.17e-4 gDW, ~4800x smaller than the earlier placeholder 2.0) — still no combination produces a decline. Confirms F-04 was not a scale artifact."
+    claim_scope: mechanism
+    lifecycle_state: tested-vs-alternatives
+    generality:
+      axes_tested: [parameter_sweep, alt_implementation]
+      level: mechanism
+    next_action: "Motivated building depth-decline-test: a spatial structure separating removal (surface) from production (interior) rather than another well-mixed sweep."
+    evidence:
+      from_test: shedding-throttle-reproduces-decline

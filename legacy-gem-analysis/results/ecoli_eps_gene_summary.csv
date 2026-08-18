@@ -1,0 +1,59 @@
+model_id,n_matched_genes,matched_genes
+iML1515,11,"cpsG, gmr, lsrA, lsrB, lsrC, lsrD, lsrK, luxS, wcaJ, yahA, ydaM"
+iEC55989_1330,4,"cpsG, lsrC, lsrD, luxS"
+iG2583_1286,4,"cpsG, lsrC, lsrD, luxS"
+iECIAI1_1343,4,"cpsG, lsrC, lsrD, luxS"
+iECH74115_1262,4,"cpsG, lsrC, lsrD, luxS"
+iECO26_1355,4,"cpsG, lsrC, lsrD, luxS"
+iECDH10B_1368,4,"cpsG, lsrC, lsrD, luxS"
+iEcSMS35_1347,4,"cpsG, lsrC, lsrD, luxS"
+iECSP_1301,4,"cpsG, lsrC, lsrD, luxS"
+iECUMN_1333,4,"cpsG, lsrC, lsrD, luxS"
+iECO103_1326,4,"cpsG, lsrC, lsrD, luxS"
+iECW_1372,3,"bcsZ, cpsG, luxS"
+iECO111_1330,3,"lsrC, lsrD, luxS"
+iEcHS_1320,3,"lsrC, lsrD, luxS"
+iWFL_1372,3,"bcsZ, cpsG, luxS"
+iB21_1397,3,"cpsG, lsrD, luxS"
+iJO1366,2,"cpsG, luxS"
+iECOK1_1307,2,"cpsG, luxS"
+iAF1260,2,"cpsG, luxS"
+iECIAI39_1322,2,"cpsG, luxS"
+iAF1260b,2,"cpsG, luxS"
+iECED1_1282,2,"cpsG, luxS"
+iECS88_1305,2,"cpsG, luxS"
+iEC1364_W,2,"cpsG, luxS"
+iUTI89_1310,2,"cpsG, luxS"
+iLF82_1304,2,"cpsG, luxS"
+iJR904,2,"cpsG, luxS"
+iEC1344_C,2,"cpsG, luxS"
+iECABU_c1320,2,"cpsG, luxS"
+iEC1368_DH5a,2,"cpsG, luxS"
+iECNA114_1301,1,cpsG
+iZ_1308,1,cpsG
+iEcE24377_1341,1,luxS
+iEC042_1314,1,luxS
+iEcDH1_1363,1,luxS
+iECD_1391,1,cpsG
+iECBD_1354,1,lsrD
+iECB_1328,1,cpsG
+iECDH1ME8569_1439,1,cpsG
+iY75_1357,0,
+iAPECO1_1312,0,
+iBWG_1329,0,
+iUMNK88_1353,0,
+iUMN146_1321,0,
+iNRG857_1313,0,
+ic_1306,0,
+iE2348C_1286,0,
+iETEC_1333,0,
+iEC1349_Crooks,0,
+iEC1356_Bl21DE3,0,
+iEKO11_1354,0,
+iEC1372_W3110,0,
+iECSF_1327,0,
+iECSE_1348,0,
+iECs_1301,0,
+iECP_1309,0,
+iEcolC_1368,0,
+e_coli_core,0,
